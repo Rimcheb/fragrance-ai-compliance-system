@@ -40,3 +40,11 @@ tgsc_unregulated_fragrances.csv
 
 # Generated proposal artifact
 GSoC_2026_DeepChem_Proposal_Draft.pdf
+
+# LaTeX build artifacts and local scratch
+assignment.*
+!assignment.tex
+references.bib
+*.png
+.Rhistory
+.vscode/

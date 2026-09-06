@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Dict, List
 from urllib.parse import quote
@@ -282,6 +283,194 @@ def compute_replacements(target_smiles: str, candidate_df: pd.DataFrame, top_k: 
     return out.head(top_k)
 
 
+ODOR_FAMILY_KEYWORDS: Dict[str, List[str]] = {
+    "musk":      ["musk", "ambrette", "galaxolide", "habanolide", "ambrettolide", "exaltolide", "ambroxan", "cetalox", "romandolide"],
+    "vanilla":   ["vanillin", "vanilla", "ethyl vanillin", "coumarin", "heliotropin", "piperonal", "isoeugenol", "iso eugenol", "benzyl benzoate"],
+    "citrus":    ["limonene", "lemon", "orange", "bergamot", "citral", "citronellol", "geranial", "neral", "grapefruit", "citronellal", "linalyl"],
+    "floral":    ["rose", "jasmine", "lily", "geraniol", "linalool", "violet", "peony", "lilial", "lyral", "hedione", "phenyl ethyl", "floralozone", "benzyl alcohol"],
+    "woody":     ["cedar", "sandalwood", "vetiver", "patchouli", "guaiac", "oakmoss", "timbersilk", "cashmeran"],
+    "spicy":     ["eugenol", "cinnamic", "cinnamaldehyde", "clove", "cardamom", "methyl eugenol"],
+    "fresh":     ["menthol", "eucalyptol", "camphor", "cineole", "mint"],
+    "green":     ["violet leaf", "galbanum", "hyacinth", "hexenol"],
+    "powdery":   ["orris", "iris", "ionone"],
+    "fruity":    ["peach", "apricot", "raspberry", "strawberry", "apple", "cherry", "pineapple", "lychee", "mandarin"],
+    "aldehydic": ["nonanal", "decanal", "undecanal", "dodecanal", "aldehyde c-"],
+}
+
+FAMILY_COLORS: Dict[str, Dict[str, str]] = {
+    "musk":      {"bg": "#C8A882", "border": "#7B5B3A"},
+    "vanilla":   {"bg": "#F5E6C8", "border": "#C8A000"},
+    "citrus":    {"bg": "#FFE066", "border": "#CCA800"},
+    "floral":    {"bg": "#FFB3D1", "border": "#CC5599"},
+    "woody":     {"bg": "#8FAF70", "border": "#4A6B30"},
+    "spicy":     {"bg": "#FF8C66", "border": "#CC3300"},
+    "fresh":     {"bg": "#99E6E6", "border": "#006B8F"},
+    "green":     {"bg": "#AADD77", "border": "#447722"},
+    "powdery":   {"bg": "#DDAADD", "border": "#884488"},
+    "fruity":    {"bg": "#FF9977", "border": "#CC4400"},
+    "aldehydic": {"bg": "#D4C88A", "border": "#8A7B2A"},
+    "other":     {"bg": "#CCCCCC", "border": "#888888"},
+}
+
+
+def infer_odor_family(name: str, smiles: str = "", logp: float = 0.0) -> str:
+    n = name.lower()
+    for family, keywords in ODOR_FAMILY_KEYWORDS.items():
+        if any(kw in n for kw in keywords):
+            return family
+
+    if RDKIT_AVAILABLE and smiles:
+        mol = Chem.MolFromSmiles(smiles)
+        if mol:
+            lactone_pat  = Chem.MolFromSmarts("[O;R][C;R](=O)")
+            ester_pat    = Chem.MolFromSmarts("[CX3](=O)[OX2H0][#6]")
+            aldehyde_pat = Chem.MolFromSmarts("[CX3H1](=O)[#6]")
+            alcohol_pat  = Chem.MolFromSmarts("[OX2H][#6]")
+            if mol.HasSubstructMatch(lactone_pat):
+                return "vanilla"
+            if mol.HasSubstructMatch(ester_pat):
+                return "fruity"
+            if mol.HasSubstructMatch(aldehyde_pat):
+                return "aldehydic"
+            ring_count = mol.GetRingInfo().NumRings()
+            if ring_count >= 2 and logp >= 3.5:
+                return "musk"
+            if mol.HasSubstructMatch(alcohol_pat):
+                return "floral"
+
+    return "other"
+
+
+@st.cache_data(show_spinner=False)
+def build_odor_df(_df: pd.DataFrame) -> pd.DataFrame:
+    out = _df.copy()
+    out["Odor_Family"] = out.apply(
+        lambda r: infer_odor_family(r["Name"], str(r.get("SMILES", "")), float(r.get("LogP", 0.0))),
+        axis=1,
+    )
+    return out
+
+
+def build_odor_network_html(network_df: pd.DataFrame, selected_families: List[str], max_nodes: int) -> str:
+    subset = network_df[network_df["Odor_Family"].isin(selected_families)]
+    # Prioritise musk & vanilla, then others
+    priority = subset[subset["Odor_Family"].isin(["musk", "vanilla"])]
+    rest = subset[~subset["Odor_Family"].isin(["musk", "vanilla"])]
+    combined = pd.concat([priority, rest]).head(max_nodes).reset_index(drop=True)
+
+    nodes: List[dict] = []
+    family_to_ids: Dict[str, List[int]] = {}
+
+    for i, row in combined.iterrows():
+        fam = row["Odor_Family"]
+        col = FAMILY_COLORS.get(fam, FAMILY_COLORS["other"])
+        highlight = fam in ("musk", "vanilla")
+        name_label = row["Name"][:22] + ("…" if len(row["Name"]) > 22 else "")
+        limit_str = f"{row['Limit_Cat4']}%" if str(row.get("Limit_Cat4", "")) not in ("", "nan") else "—"
+        nodes.append({
+            "id": i,
+            "label": name_label,
+            "title": f"<b>{row['Name']}</b><br>Family: {fam}<br>Status: {row.get('Status','')}<br>Limit: {limit_str}",
+            "color": {
+                "background": col["bg"],
+                "border": col["border"],
+                "highlight": {"background": "#FFFF99", "border": "#FF6600"},
+            },
+            "group": fam,
+            "size": 22 if highlight else 14,
+            "font": {"size": 13 if highlight else 10, "color": "#222222"},
+            "borderWidth": 3 if highlight else 1,
+        })
+        family_to_ids.setdefault(fam, []).append(i)
+
+    edges: List[dict] = []
+    eid = 0
+    for fam, ids in family_to_ids.items():
+        col = FAMILY_COLORS.get(fam, FAMILY_COLORS["other"])
+        limited = ids[:12]  # cap edges per family to avoid overload
+        for a in range(len(limited)):
+            for b in range(a + 1, len(limited)):
+                edges.append({
+                    "id": eid,
+                    "from": limited[a],
+                    "to": limited[b],
+                    "color": {"color": col["border"], "opacity": 0.25},
+                    "width": 1,
+                })
+                eid += 1
+
+    legend_html = ""
+    for fam in sorted(FAMILY_COLORS.keys()):
+        if fam == "other":
+            continue
+        count = len(family_to_ids.get(fam, []))
+        if count == 0:
+            continue
+        col = FAMILY_COLORS[fam]
+        bold = "font-weight:700;" if fam in ("musk", "vanilla") else ""
+        legend_html += (
+            f'<div style="display:flex;align-items:center;gap:6px;margin:3px 0;{bold}">'
+            f'<div style="width:13px;height:13px;border-radius:50%;background:{col["bg"]};'
+            f'border:2px solid {col["border"]};flex-shrink:0;"></div>'
+            f'<span style="font-size:12px;color:#ddd;">{fam} ({count})</span></div>'
+        )
+
+    nodes_json = json.dumps(nodes)
+    edges_json = json.dumps(edges)
+
+    return """
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <style>
+    body { margin: 0; background: #12122a; }
+    #net { width: 100%; height: 560px; background: #12122a; border: 1px solid #333; }
+    #legend { position:absolute; top:10px; right:12px; background:rgba(18,18,42,0.92);
+              padding:10px 14px; border-radius:8px; border:1px solid #444;
+              max-height:540px; overflow-y:auto; }
+    #legend h4 { margin:0 0 7px; font-size:13px; color:#aaa;
+                 border-bottom:1px solid #555; padding-bottom:4px; font-family:Georgia,serif; }
+  </style>
+</head>
+<body>
+  <div style="position:relative;">
+    <div id="net"></div>
+    <div id="legend">
+      <h4>Odor Families</h4>
+      LEGEND_HTML
+    </div>
+  </div>
+  <script>
+    var nodes = new vis.DataSet(NODES_JSON);
+    var edges = new vis.DataSet(EDGES_JSON);
+    var net = new vis.Network(
+      document.getElementById("net"),
+      { nodes: nodes, edges: edges },
+      {
+        physics: {
+          solver: "forceAtlas2Based",
+          forceAtlas2Based: {
+            gravitationalConstant: -55,
+            centralGravity: 0.004,
+            springLength: 130,
+            springConstant: 0.09,
+            damping: 0.45,
+            avoidOverlap: 0.6
+          },
+          stabilization: { iterations: 220 }
+        },
+        nodes: { shape: "dot", shadow: { enabled: true, size: 7, x: 2, y: 2 } },
+        edges: { smooth: { enabled: true, type: "continuous" } },
+        interaction: { hover: true, tooltipDelay: 150, hideEdgesOnDrag: true, navigationButtons: true }
+      }
+    );
+  </script>
+</body>
+</html>
+""".replace("NODES_JSON", nodes_json).replace("EDGES_JSON", edges_json).replace("LEGEND_HTML", legend_html)
+
+
 def render_structure(smiles: str, label: str) -> None:
     """Render a 2D structure from SMILES with RDKit or a network fallback."""
     if not smiles:
@@ -350,8 +539,8 @@ if df.empty:
     st.stop()
 
 
-tab0, tab1, tab2, tab3 = st.tabs(
-    ["Directory", "Consumer View", "Scientist View", "Regulatory Audit"]
+tab0, tab1, tab2, tab3, tab4 = st.tabs(
+    ["Directory", "Consumer View", "Scientist View", "Regulatory Audit", "Odor Network"]
 )
 
 with tab0:
@@ -486,3 +675,43 @@ with tab3:
         )
     elif uploaded is not None and formula_df.empty:
         st.error("CSV format invalid. Required columns: Ingredient, Percentage")
+
+with tab4:
+    st.subheader("Odor Similarity Network")
+    st.caption(
+        "Each node is a fragrance ingredient. Nodes of the same colour share an odour family "
+        "('smell the same'). Edges link molecules within the same family. "
+        "Musk and Vanilla nodes are larger and bolder."
+    )
+
+    odor_df = build_odor_df(df)
+
+    all_families = sorted(odor_df["Odor_Family"].unique().tolist())
+    default_families = [f for f in ["musk", "vanilla", "floral", "citrus", "woody"] if f in all_families]
+
+    col_a, col_b = st.columns([3, 1])
+    with col_a:
+        selected = st.multiselect(
+            "Show odour families",
+            options=all_families,
+            default=default_families,
+        )
+    with col_b:
+        max_n = st.slider("Max molecules", min_value=30, max_value=300, value=120, step=10)
+
+    if not selected:
+        st.info("Select at least one odour family to display the network.")
+    else:
+        counts = odor_df[odor_df["Odor_Family"].isin(selected)]["Odor_Family"].value_counts()
+        cols = st.columns(min(len(counts), 6))
+        for i, (fam, cnt) in enumerate(counts.items()):
+            with cols[i % len(cols)]:
+                st.metric(fam, cnt)
+
+        html_src = build_odor_network_html(odor_df, selected, max_n)
+        components.html(html_src, height=600, scrolling=False)
+
+        with st.expander("Raw family assignments"):
+            show_cols = ["Name", "Odor_Family", "Status", "Limit_Cat4"]
+            fam_view = odor_df[odor_df["Odor_Family"].isin(selected)][show_cols].sort_values("Odor_Family")
+            st.dataframe(fam_view, use_container_width=True, height=300)

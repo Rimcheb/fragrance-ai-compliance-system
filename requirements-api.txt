@@ -1,0 +1,8 @@
+# Runtime dependencies for the FastAPI service (main.py) only.
+# Everything the offline pipeline in scripts/ needs lives in requirements-full.txt.
+fastapi
+uvicorn
+pandas
+numpy
+rdkit
+scikit-learn

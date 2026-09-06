@@ -2,11 +2,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 from typing import List
 from urllib.parse import quote
 from urllib.request import urlopen
 from pathlib import Path
+from functools import lru_cache
 import pandas as pd
 
 # Try importing RDKit for 3D coordinate generation
@@ -25,6 +27,9 @@ IFRA_CSV_PATH = BASE_DIR / "ifra_category4_smiles.csv"
 WATCHLIST_CSV_PATH = BASE_DIR / "AI_Predictive_Watchlist.csv"
 UI_HTML_PATH = BASE_DIR / "new_UI.html"
 PUBLIC_DIR_PATH = BASE_DIR / "public"
+
+# Compress responses (the UI HTML is ~107 KB uncompressed)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Setup CORS
 app.add_middleware(
@@ -175,7 +180,16 @@ def get_directory():
     mols = []
     for entry in sorted(MOCK_DB.values(), key=lambda x: x["name"]):
         item = entry.copy()
-        item.update(infer_odor_profile(item.get("name", ""), item.get("smiles", ""), None))
+        logp, mol_wt = compute_descriptors(item.get("smiles", ""))
+        item["logp"] = logp
+        item["mol_wt"] = mol_wt
+        item.update(
+            infer_odor_profile(
+                item.get("name", ""),
+                item.get("smiles", ""),
+                logp if isinstance(logp, (int, float)) else None,
+            )
+        )
         mols.append(item)
     return mols
 
@@ -197,15 +211,21 @@ def serve_home():
 app.mount("/public", StaticFiles(directory=str(PUBLIC_DIR_PATH)), name="public")
 
 
+@lru_cache(maxsize=2048)
 def fetch_pubchem_molblock(smiles: str):
-    """Fetch a 3D SDF block from PubChem as a fallback when RDKit is unavailable."""
+    """Fetch a 3D SDF block from PubChem as a fallback when RDKit is unavailable.
+
+    Cached: the same molecule is never fetched twice for the life of the process.
+    Timeout is short on purpose — this sits on a request path, and a slow
+    PubChem should degrade to "no 3D" rather than hang the whole response.
+    """
     if not smiles:
         return None
 
     try:
         encoded = quote(smiles, safe="")
         url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/{encoded}/SDF?record_type=3d"
-        with urlopen(url, timeout=10) as response:
+        with urlopen(url, timeout=3) as response:
             text = response.read().decode("utf-8", errors="ignore")
             if text and "M  END" in text:
                 return text
@@ -213,6 +233,87 @@ def fetch_pubchem_molblock(smiles: str):
         print("PubChem 3D fallback failed:", e)
 
     return None
+
+
+@lru_cache(maxsize=4096)
+def compute_descriptors(smiles: str):
+    """LogP and molecular weight from the 2D structure. No 3D embedding needed."""
+    if not (RDKIT_AVAILABLE and smiles):
+        return ("N/A", "N/A")
+    try:
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            return ("N/A", "N/A")
+        return (round(Descriptors.MolLogP(mol), 2), round(Descriptors.MolWt(mol), 2))
+    except Exception:
+        return ("N/A", "N/A")
+
+
+@lru_cache(maxsize=4096)
+def morgan_fp(smiles: str):
+    if not (RDKIT_AVAILABLE and smiles):
+        return None
+    try:
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            return None
+        return AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=1024)
+    except Exception:
+        return None
+
+
+@lru_cache(maxsize=4096)
+def compute_replacement(smiles: str, current_key: str):
+    """Nearest structural neighbour by Tanimoto over the candidate pool.
+
+    NOTE: structural similarity is not toxicological equivalence. This is a
+    shortlist for a human to check, not a safety verdict.
+    """
+    target_fp = morgan_fp(smiles)
+    if target_fp is None:
+        return "No coordinates for Tanimoto."
+
+    from rdkit import DataStructs
+
+    best_match, best_score = None, 0.0
+    for k, v in MOCK_DB.items():
+        if k == current_key:
+            continue
+        if not ("Unregulated" in v["status"] or v["status"] == "Restricted"):
+            continue
+        cand_fp = morgan_fp(v.get("smiles", ""))
+        if cand_fp is None:
+            continue
+        score = DataStructs.TanimotoSimilarity(target_fp, cand_fp)
+        if score > best_score:
+            best_score, best_match = score, v["name"]
+
+    if best_match:
+        return f"{best_match} ({round(best_score * 100, 1)}% Tanimoto Match)"
+    return "No known unregulated structural proxy found."
+
+
+@lru_cache(maxsize=2048)
+def compute_molblock(smiles: str):
+    """3D coordinates for the viewer. Slow (ETKDG embed + MMFF), so it is
+    cached and lives behind its own endpoint rather than blocking /api/molecule.
+    """
+    if not smiles:
+        return None
+    if RDKIT_AVAILABLE:
+        try:
+            mol2d = Chem.MolFromSmiles(smiles)
+            if mol2d is None:
+                raise ValueError("Invalid SMILES string")
+            m = Chem.AddHs(mol2d)
+            if AllChem.EmbedMolecule(m, AllChem.ETKDGv3()) == -1:
+                if AllChem.EmbedMolecule(m, randomSeed=42) == -1:
+                    raise ValueError("3D embedding failed — no coordinates generated")
+            AllChem.MMFFOptimizeMolecule(m)
+            return Chem.MolToMolBlock(m)
+        except Exception as e:
+            print("RDKit 3D error:", e)
+    return fetch_pubchem_molblock(smiles)
 
 
 def infer_odor_profile(name: str, smiles: str, logp_value=None):
@@ -319,81 +420,49 @@ def search_molecules(q: str = ""):
     return [{"name": data["name"]} for key, data in MOCK_DB.items() if key.startswith(q_lower)]
 
 @app.get("/api/molecule/{name}")
-def get_molecule_data(name: str):
+def get_molecule_data(name: str, include_3d: bool = False):
+    """Fast path: everything except 3D coordinates.
+
+    3D embedding used to run here and made this endpoint take seconds. It now
+    lives at /api/molecule3d/{name}, which the UI fetches lazily after the card
+    has already rendered. Pass include_3d=true to get the old blocking behaviour
+    (used by the static site builder).
+    """
     key = name.lower()
     if key not in MOCK_DB:
         raise HTTPException(status_code=404, detail="Molecule not found in database.")
-    
+
     data = MOCK_DB[key].copy()
-    
-    # Generate 3D Coordinates using RDKit for the Web Viewer
-    if RDKIT_AVAILABLE and data.get("smiles"):
-        try:
-            mol2d = Chem.MolFromSmiles(data["smiles"])
-            if mol2d is None:
-                raise ValueError("Invalid SMILES string")
-            m = Chem.AddHs(mol2d)
-            result = AllChem.EmbedMolecule(m, AllChem.ETKDGv3())
-            if result == -1:
-                # Fallback: try without ETKDGv3 params
-                result = AllChem.EmbedMolecule(m, randomSeed=42)
-            if result == -1:
-                raise ValueError("3D embedding failed — no coordinates generated")
-            AllChem.MMFFOptimizeMolecule(m)
-            data["mol_block"] = Chem.MolToMolBlock(m) # For 3Dmol.js
-            data["logp"] = round(Descriptors.MolLogP(m), 2)
-            data["mol_wt"] = round(Descriptors.MolWt(m), 2)
+    smiles = data.get("smiles", "")
 
-            # Compute real KNN substitution if not already set
-            if data["replacement"] == "Compute via KNN":
-                from rdkit import DataStructs
-                target_fp = AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(data["smiles"]), 2, nBits=1024)
+    logp, mol_wt = compute_descriptors(smiles)
+    data["logp"] = logp
+    data["mol_wt"] = mol_wt
 
-                best_match = None
-                best_score = 0.0
-                current_name = data["name"].lower()
+    if data["replacement"] == "Compute via KNN":
+        data["replacement"] = compute_replacement(smiles, key)
 
-                for k, v in MOCK_DB.items():
-                    # Skip the molecule itself
-                    if k == current_name:
-                        continue
-                    # Candidate pool: unregulated watchlist OR restricted (has a permitted limit)
-                    is_candidate = "Unregulated" in v["status"] or v["status"] == "Restricted"
-                    if is_candidate and v.get("smiles"):
-                        safe_mol = Chem.MolFromSmiles(v["smiles"])
-                        if safe_mol:
-                            safe_fp = AllChem.GetMorganFingerprintAsBitVect(safe_mol, 2, nBits=1024)
-                            score = DataStructs.TanimotoSimilarity(target_fp, safe_fp)
-                            if score > best_score:
-                                best_score = score
-                                best_match = v["name"]
-                
-                if best_match:
-                    data["replacement"] = f"{best_match} ({round(best_score*100, 1)}% Tanimoto Match)"
-                else:
-                    data["replacement"] = "No known unregulated structural proxy found."
-
-        except Exception as e:
-            print("RDKit Error:", e)
-            data["mol_block"] = fetch_pubchem_molblock(data.get("smiles", ""))
-            data["logp"] = "N/A"
-            data["mol_wt"] = "N/A"
-            if data["replacement"] == "Compute via KNN": data["replacement"] = "No coordinates for Tanimoto."
-    else:
-        data["mol_block"] = fetch_pubchem_molblock(data.get("smiles", ""))
-        data["logp"] = "N/A"
-        data["mol_wt"] = "N/A"
-        if data["replacement"] == "Compute via KNN": data["replacement"] = "No coordinates for Tanimoto."
+    data["mol_block"] = compute_molblock(smiles) if include_3d else None
+    data["mol_block_url"] = f"/api/molecule3d/{quote(data['name'])}" if smiles else None
 
     data.update(
         infer_odor_profile(
             data.get("name", ""),
-            data.get("smiles", ""),
+            smiles,
             data.get("logp") if isinstance(data.get("logp"), (int, float)) else None,
         )
     )
 
     return data
+
+
+@app.get("/api/molecule3d/{name}")
+def get_molecule_3d(name: str):
+    """3D coordinates only. Slow the first time per molecule, cached after."""
+    key = name.lower()
+    if key not in MOCK_DB:
+        raise HTTPException(status_code=404, detail="Molecule not found in database.")
+    return {"mol_block": compute_molblock(MOCK_DB[key].get("smiles", ""))}
 
 
 # --- Regulatory Auditor Endpoint ---

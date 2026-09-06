@@ -3,8 +3,12 @@ services:
     name: fragrance-api
     env: python
     plan: free
-    buildCommand: pip install --upgrade pip && pip install -r requirements-full.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port 8000
+    # requirements-api.txt is the runtime-only set. requirements-full.txt also
+    # pulled streamlit, pdfplumber, beautifulsoup4, pubchempy, cirpy, tqdm and
+    # Pillow — none of which main.py imports. They only slowed the build and the
+    # cold start. Use requirements-full.txt for the offline pipeline in scripts/.
+    buildCommand: pip install --upgrade pip && pip install -r requirements-api.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11
+        value: "3.11"

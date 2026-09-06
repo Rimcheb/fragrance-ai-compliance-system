@@ -12,3 +12,4 @@ cirpy
 beautifulsoup4
 requests
 pdfplumber
+scipy

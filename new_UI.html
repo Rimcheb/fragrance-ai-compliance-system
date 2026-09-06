@@ -1,2591 +1,508 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Nose What's Legal — Maison de Conformite</title>
+<title>Nose What's Legal — IFRA Category 4 lookup</title>
 
-<!-- Fonts: Cormorant Garamond (display serif), Italiana (accent), Manrope (utility), Caveat (signature script) -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Italiana&family=Manrope:wght@300;400;500;600;700&family=Caveat:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
-<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<!-- Both pinned and served from jsDelivr. `defer` keeps them off the render path. -->
+<script defer src="https://cdn.jsdelivr.net/npm/3dmol@2.5.5/build/3Dmol-min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/vis-network@10.1.2/standalone/umd/vis-network.min.js"></script>
 
 <style>
-/* ============================================================
-   DESIGN TOKENS — Atelier de Parfum
-   ============================================================ */
 :root {
-  --espresso:       #1E1410;
-  --espresso-soft:  #2A1D17;
-  --espresso-hi:    #3A2820;
-  --cream:          #F5EDE3;
-  --cream-soft:     #EBE0D2;
-  --parchment:      #E4D5C1;
-  --gold:           #C9A66B;
-  --gold-hi:        #D9BC86;
-  --gold-deep:      #8F7240;
-  --oxblood:        #6E2A24;
-  --moss:           #4A5942;
-  --amber:          #A86B30;
-  --ink:            #16100D;
-  --whisper:        rgba(245,237,227,0.55);
-
-  --font-display: "Cormorant Garamond", "Times New Roman", serif;
-  --font-accent:  "Italiana", "Cormorant Garamond", serif;
-  --font-script:  "Caveat", cursive;
-  --font-body:    "Manrope", -apple-system, sans-serif;
-
-  --tracking-wide:  0.22em;
-  --tracking-wider: 0.34em;
-
-  --ease-silk: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-luxe: cubic-bezier(0.76, 0, 0.24, 1);
+  --bg:        #ffffff;
+  --panel:     #f7f7f8;
+  --panel-2:   #f0f0f2;
+  --border:    #e3e3e7;
+  --border-2:  #cfcfd6;
+  --text:      #16181d;
+  --muted:     #666b76;
+  --accent:    #2b5cc4;
+  --banned:    #b42318;
+  --restrict:  #b45309;
+  --ok:        #15803d;
+  --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
-:root[data-theme="light"] {
-  --espresso:       #E9DDCB;
-  --espresso-soft:  #E1D2BC;
-  --espresso-hi:    #D6C2A7;
-  --cream:          #2E2018;
-  --cream-soft:     #4A392B;
-  --parchment:      #C9B195;
-  --gold:           #9A7449;
-  --gold-hi:        #B28959;
-  --gold-deep:      #6D5134;
-  --oxblood:        #8F3C34;
-  --moss:           #3F5B48;
-  --amber:          #8B643C;
-  --ink:            #1A130F;
-  --whisper:        rgba(46, 32, 24, 0.62);
-}
+* { box-sizing: border-box; }
 
-:root[data-theme="light"] .masthead,
-:root[data-theme="light"] .tabs,
-:root[data-theme="light"] .editorial-header,
-:root[data-theme="light"] .metrics,
-:root[data-theme="light"] .metric,
-:root[data-theme="light"] .ingredients,
-:root[data-theme="light"] .card,
-:root[data-theme="light"] .card-foot,
-:root[data-theme="light"] .intel,
-:root[data-theme="light"] .intel-left,
-:root[data-theme="light"] .grade-block,
-:root[data-theme="light"] .limit-block,
-:root[data-theme="light"] .meta-grid,
-:root[data-theme="light"] .substitute,
-:root[data-theme="light"] .viewer,
-:root[data-theme="light"] .qsar,
-:root[data-theme="light"] .qsar-item,
-:root[data-theme="light"] .audit-frame,
-:root[data-theme="light"] .footer,
-:root[data-theme="light"] .audit-results,
-:root[data-theme="light"] .audit-results th,
-:root[data-theme="light"] .audit-results td,
-:root[data-theme="light"] .sidebar,
-:root[data-theme="light"] .sidebar-section {
-  border-color: rgba(46, 32, 24, 0.34) !important;
-}
-
-:root[data-theme="light"] .intel-eyebrow::after,
-:root[data-theme="light"] .audit-frame::before,
-:root[data-theme="light"] .audit-frame::after,
-:root[data-theme="light"] .limit-bar {
-  background: rgba(46, 32, 24, 0.34) !important;
-}
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body {
-  background: var(--espresso);
-  color: var(--cream);
-  font-family: var(--font-body);
-  font-weight: 300;
-  letter-spacing: 0.01em;
-  line-height: 1.55;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
-}
-
-/* Custom cursor aura */
-.cursor-aura {
-  position: fixed;
-  top: 0; left: 0;
-  width: 280px; height: 280px;
-  pointer-events: none;
-  z-index: 1;
-  background: radial-gradient(circle, rgba(201, 166, 107, 0.12), transparent 65%);
-  transform: translate(-50%, -50%);
-  transition: opacity 0.5s ease;
-  opacity: 0;
-  mix-blend-mode: screen;
-}
-:root[data-theme="light"] .cursor-aura {
-  background: radial-gradient(circle, rgba(154, 116, 73, 0.14), transparent 65%);
-  mix-blend-mode: multiply;
-}
-body:hover .cursor-aura { opacity: 1; }
-
-/* Film-grain */
-body::before {
-  content: "";
-  position: fixed; inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.08;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  mix-blend-mode: overlay;
-}
-
-/* Ambient drifting mist background */
-.ambient-mist {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
-}
-.ambient-mist span {
-  position: absolute;
-  width: 600px; height: 600px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(201, 166, 107, 0.09), transparent 60%);
-  filter: blur(40px);
-  animation: drift 28s linear infinite;
-}
-:root[data-theme="light"] .ambient-mist span {
-  background: radial-gradient(circle, rgba(154, 116, 73, 0.12), transparent 60%);
-}
-.ambient-mist span:nth-child(1) { top: -200px; left: -100px; animation-delay: 0s; }
-.ambient-mist span:nth-child(2) { top: 40%; right: -200px; animation-delay: -9s; animation-duration: 36s; }
-.ambient-mist span:nth-child(3) { bottom: -200px; left: 40%; animation-delay: -18s; animation-duration: 42s; }
-
-@keyframes drift {
-  0%   { transform: translate(0, 0) scale(1); }
-  33%  { transform: translate(80px, -60px) scale(1.15); }
-  66%  { transform: translate(-60px, 80px) scale(0.92); }
-  100% { transform: translate(0, 0) scale(1); }
-}
-
-/* ============================================================
-   PERFUME SPRAY TEXT REVEAL
-   ============================================================ */
-.spray-text {
-  display: inline-block;
-  position: relative;
-}
-.spray-text .spray-char {
-  display: inline-block;
-  opacity: 0;
-  filter: blur(14px);
-  transform: translateY(8px) scale(0.9);
-  transition: opacity 0.9s var(--ease-silk), filter 0.9s var(--ease-silk), transform 0.9s var(--ease-silk);
-}
-.spray-text .spray-char.spray--space {
-  width: 0.35em;
-}
-.spray-text.sprayed .spray-char {
-  opacity: 1;
-  filter: blur(0);
-  transform: translateY(0) scale(1);
-}
-
-/* Spray mist burst container */
-.spray-mist {
-  position: absolute;
-  top: 50%; left: -30px;
-  width: 60px; height: 60px;
-  pointer-events: none;
-  transform: translateY(-50%);
-  z-index: 2;
-}
-.spray-mist::before,
-.spray-mist::after {
-  content: "";
-  position: absolute;
-  left: 50%; top: 50%;
-  width: 4px; height: 4px;
-  border-radius: 50%;
-  background: var(--gold);
-  opacity: 0;
-}
-.spray-text.spraying .spray-mist::before {
-  animation: mistBurst 1.2s var(--ease-silk) forwards;
-}
-.spray-text.spraying .spray-mist::after {
-  animation: mistBurst 1.2s var(--ease-silk) 0.15s forwards;
-}
-@keyframes mistBurst {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
-  20%  { opacity: 0.8; }
-  100% { opacity: 0; transform: translate(200px, -50%) scale(25); filter: blur(12px); }
-}
-
-/* Spray particles — created dynamically in JS */
-.spray-particle {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(201, 166, 107, 0.9), rgba(201, 166, 107, 0) 70%);
-  pointer-events: none;
-  opacity: 0;
-}
-:root[data-theme="light"] .spray-particle {
-  background: radial-gradient(circle, rgba(154, 116, 73, 0.85), rgba(154, 116, 73, 0) 70%);
-}
-
-/* ============================================================
-   HEADER / NAV
-   ============================================================ */
-.masthead {
-  position: relative;
-  z-index: 3;
-  padding: 2.2rem 3.5rem 1.6rem;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 2rem;
-  border-bottom: 1px solid rgba(201, 166, 107, 0.18);
-  backdrop-filter: blur(12px);
-}
-
-.brand {
-  display: flex;
-  align-items: baseline;
-  gap: 0.9rem;
-}
-.brand-mark {
-  font-family: var(--font-accent);
-  font-size: 2.15rem;
-  letter-spacing: 0.04em;
-  color: var(--cream);
-  line-height: 1;
-  cursor: pointer;
-}
-.brand-mark em {
-  font-family: var(--font-script);
-  font-style: normal;
-  color: var(--gold);
-  font-weight: 500;
-  font-size: 1.6rem;
-  margin-left: 0.25rem;
-  display: inline-block;
-  transform: translateY(-3px) rotate(-4deg);
-  transition: transform 0.5s var(--ease-silk);
-}
-.brand-mark:hover em {
-  transform: translateY(-3px) rotate(8deg) scale(1.15);
-}
-.brand-tag {
-  font-family: var(--font-body);
-  font-size: 0.62rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--whisper);
-  padding-left: 1.2rem;
-  border-left: 1px solid rgba(201, 166, 107, 0.35);
-}
-
-.search {
-  justify-self: center;
-  width: min(420px, 100%);
-  position: relative;
-}
-.search input {
-  width: 100%;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid rgba(201, 166, 107, 0.3);
-  padding: 0.65rem 0 0.65rem 1.6rem;
-  font-family: var(--font-display);
-  font-size: 1.05rem;
-  font-style: italic;
-  color: var(--cream);
-  outline: none;
-  transition: border-color 0.4s ease;
-}
-.search input::placeholder { color: var(--whisper); font-style: italic; }
-.search input:focus { border-color: var(--gold); }
-.search::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 50%;
-  width: 14px; height: 14px;
-  transform: translateY(-50%);
-  border: 1px solid var(--whisper);
-  border-radius: 50%;
-  transition: border-color 0.4s ease;
-}
-.search::after {
-  content: "";
-  position: absolute;
-  left: 11px; top: 55%;
-  width: 6px; height: 1px;
-  background: var(--whisper);
-  transform: rotate(45deg);
-  transition: background 0.4s ease;
-}
-.search:focus-within::before { border-color: var(--gold); }
-.search:focus-within::after { background: var(--gold); }
-
-.edition {
-  font-family: var(--font-accent);
-  font-size: 0.78rem;
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--gold);
-  text-align: right;
-  line-height: 1.3;
-}
-.edition small {
-  display: block;
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  letter-spacing: var(--tracking-wider);
-  color: var(--whisper);
-  margin-top: 0.25rem;
-  font-weight: 400;
-}
-
-.edition-controls { margin-top: 0.65rem; }
-
-.edition-controls label {
-  display: block;
-  font-family: var(--font-body);
-  font-size: 0.54rem;
-  letter-spacing: var(--tracking-wider);
-  color: var(--whisper);
-  text-transform: uppercase;
-  margin-bottom: 0.35rem;
-}
-
-.edition-controls select {
-  background: transparent;
-  border: 1px solid rgba(201, 166, 107, 0.35);
-  color: var(--cream);
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 0.9rem;
-  padding: 0.25rem 1.6rem 0.25rem 0.5rem;
-  appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--gold) 50%), linear-gradient(135deg, var(--gold) 50%, transparent 50%);
-  background-position: calc(100% - 10px) 52%, calc(100% - 6px) 52%;
-  background-size: 4px 4px, 4px 4px;
-  background-repeat: no-repeat;
-  outline: none;
-  cursor: pointer;
-  transition: border-color 0.3s ease;
-}
-.edition-controls select:hover { border-color: var(--gold); }
-
-.audit-results {
-  margin-top: 2rem;
-  text-align: left;
-  border-top: 1px solid rgba(201, 166, 107, 0.2);
-  padding-top: 1.5rem;
-}
-
-.audit-results table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.audit-results th,
-.audit-results td {
-  font-family: var(--font-body);
-  font-size: 0.72rem;
-  padding: 0.65rem 0.45rem;
-  border-bottom: 1px solid rgba(201, 166, 107, 0.15);
-}
-
-.audit-results th {
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--whisper);
-  font-weight: 600;
-}
-
-.audit-ok { color: var(--moss); }
-.audit-fail { color: var(--oxblood); }
-
-/* ============================================================
-   TABS
-   ============================================================ */
-.tabs {
-  position: relative;
-  z-index: 3;
-  display: flex;
-  gap: 3.5rem;
-  padding: 1.4rem 3.5rem;
-  border-bottom: 1px solid rgba(201, 166, 107, 0.18);
-}
-.tab {
-  background: transparent;
-  border: none;
-  color: var(--whisper);
-  font-family: var(--font-body);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  padding: 0.3rem 0;
-  cursor: pointer;
-  position: relative;
-  transition: color 0.3s ease;
-  display: flex;
-  align-items: baseline;
-  gap: 0.8rem;
-}
-.tab .numeral {
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-  font-style: italic;
-  font-weight: 400;
-  color: var(--gold);
-  text-transform: none;
-  letter-spacing: 0;
-  transition: transform 0.5s var(--ease-silk);
-}
-.tab:hover { color: var(--cream); }
-.tab:hover .numeral { transform: translateY(-2px) scale(1.15); }
-.tab.active { color: var(--cream); }
-.tab.active::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0;
-  bottom: -1.4rem;
-  height: 1px;
-  background: var(--gold);
-  animation: drawLine 0.6s var(--ease-silk);
-  transform-origin: left;
-}
-@keyframes drawLine {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
-
-/* ============================================================
-   VIEW CONTAINERS — silk transition
-   ============================================================ */
-.view {
-  display: none;
-  position: relative;
-  z-index: 2;
-  padding: 3.5rem 3.5rem 6rem;
-}
-.view.active {
-  display: block;
-  animation: silkIn 0.9s var(--ease-silk) both;
-}
-.view.leaving {
-  display: block;
-  animation: silkOut 0.45s var(--ease-silk) both;
-}
-@keyframes silkIn {
-  0% {
-    opacity: 0;
-    filter: blur(10px);
-    transform: translateY(24px);
-  }
-  100% {
-    opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
-  }
-}
-@keyframes silkOut {
-  0% {
-    opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
-  }
-  100% {
-    opacity: 0;
-    filter: blur(8px);
-    transform: translateY(-12px);
-  }
-}
-
-/* Staggered child reveal */
-.view.active .editorial-header > *,
-.view.active .metrics,
-.view.active .filterbar,
-.view.active .ingredients,
-.view.active .intel,
-.view.active .audit-frame {
-  animation: riseFade 1s var(--ease-silk) both;
-}
-.view.active .editorial-header > *:nth-child(1) { animation-delay: 0.05s; }
-.view.active .editorial-header > *:nth-child(2) { animation-delay: 0.15s; }
-.view.active .editorial-header > *:nth-child(3) { animation-delay: 0.25s; }
-.view.active .metrics { animation-delay: 0.35s; }
-.view.active .filterbar { animation-delay: 0.45s; }
-.view.active .ingredients { animation-delay: 0.5s; }
-.view.active .intel { animation-delay: 0.2s; }
-.view.active .audit-frame { animation-delay: 0.2s; }
-
-@keyframes riseFade {
-  from { opacity: 0; transform: translateY(18px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ============================================================
-   EDITORIAL HEADER
-   ============================================================ */
-.editorial-header {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: end;
-  gap: 2.5rem;
-  margin-bottom: 3rem;
-  padding-bottom: 2rem;
-  border-bottom: 1px solid rgba(201, 166, 107, 0.22);
-}
-.editorial-header .eyebrow {
-  font-family: var(--font-body);
-  font-size: 0.6rem;
-  font-weight: 500;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--gold);
-  margin-bottom: 0.8rem;
-  display: block;
-}
-.editorial-header h1 {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: clamp(2rem, 4.1vw, 3.7rem);
-  line-height: 0.95;
-  letter-spacing: -0.01em;
-  color: var(--cream);
-  max-width: 14ch;
-  word-break: normal;
-  overflow-wrap: normal;
-  hyphens: manual;
-  position: relative;
-}
-.editorial-header h1 em {
-  font-style: italic;
-  color: var(--gold);
-  font-weight: 400;
-}
-.editorial-header .script {
-  font-family: var(--font-script);
-  font-size: 1.6rem;
-  color: var(--gold);
-  align-self: center;
-  transform: rotate(-4deg);
-  margin-left: -1rem;
-  animation: gentleSway 6s ease-in-out infinite;
-}
-@keyframes gentleSway {
-  0%, 100% { transform: rotate(-4deg) translateY(0); }
-  50%      { transform: rotate(-2deg) translateY(-4px); }
-}
-.editorial-header .subline {
-  justify-self: end;
-  max-width: 280px;
-  text-align: right;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1.05rem;
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
   line-height: 1.5;
-  color: var(--cream-soft);
-  opacity: 0.85;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ============================================================
-   METRICS STRIP
-   ============================================================ */
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0;
-  margin-bottom: 3rem;
-  border-top: 1px solid rgba(201, 166, 107, 0.22);
-  border-bottom: 1px solid rgba(201, 166, 107, 0.22);
+a { color: var(--accent); }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------- header ---------- */
+header {
+  border-bottom: 1px solid var(--border);
+  padding: 20px 0 0;
 }
-.metric {
-  padding: 1.5rem 2rem;
-  border-right: 1px solid rgba(201, 166, 107, 0.12);
-  position: relative;
-  overflow: hidden;
-  transition: background 0.5s ease;
-}
-.metric::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(201, 166, 107, 0.08), transparent 60%);
-  opacity: 0;
-  transition: opacity 0.5s ease;
-}
-.metric:hover::before { opacity: 1; }
-.metric:hover .value { transform: translateY(-2px); }
-.metric:last-child { border-right: none; }
-.metric .label {
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--whisper);
-  margin-bottom: 0.5rem;
-  position: relative;
-}
-.metric .value {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: 2.6rem;
-  line-height: 1;
-  color: var(--cream);
+.masthead {
   display: flex;
   align-items: baseline;
-  gap: 0.6rem;
-  position: relative;
-  transition: transform 0.5s var(--ease-silk);
-}
-.metric .value small {
-  font-family: var(--font-body);
-  font-size: 0.7rem;
-  font-weight: 400;
-  letter-spacing: 0.06em;
-  color: var(--gold);
-  text-transform: uppercase;
-}
-.metric--accent .value { color: var(--gold); }
-.metric--warn  .value { color: var(--amber); }
-.metric--ban   .value { color: var(--oxblood); filter: brightness(1.3); }
-
-/* ============================================================
-   FILTER BAR
-   ============================================================ */
-.filterbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 2rem;
-  margin-bottom: 2.5rem;
+  gap: 16px;
   flex-wrap: wrap;
+  margin-bottom: 4px;
 }
-.filters {
-  display: flex;
-  gap: 0.3rem;
-  align-items: center;
+h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.01em;
 }
-.filters .dot {
-  font-family: var(--font-display);
-  font-style: italic;
-  color: var(--gold);
-  margin: 0 0.8rem;
-  opacity: 0.7;
+.tagline { color: var(--muted); font-size: 13px; }
+.masthead-search { margin-left: auto; }
+.masthead-search input {
+  width: 260px;
+  padding: 6px 10px;
+  font: inherit;
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
 }
-.filter {
-  background: transparent;
-  border: none;
-  color: var(--whisper);
-  font-family: var(--font-body);
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  padding: 0.5rem 0.9rem;
-  cursor: pointer;
-  transition: color 0.4s var(--ease-silk), background 0.4s var(--ease-silk), transform 0.3s var(--ease-silk);
-  border: 1px solid transparent;
-}
-.filter:hover { color: var(--cream); transform: translateY(-1px); }
-.filter.active {
-  color: var(--espresso);
-  background: var(--gold);
-}
+.masthead-search input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
-.sort { display: flex; align-items: center; gap: 0.8rem; }
-.sort label {
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--whisper);
-}
-.sort select {
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid rgba(201, 166, 107, 0.3);
-  color: var(--cream);
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 0.95rem;
-  padding: 0.3rem 1.2rem 0.3rem 0;
-  cursor: pointer;
-  outline: none;
+nav { display: flex; gap: 4px; margin-top: 16px; }
+.tab {
   appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--gold) 50%), linear-gradient(135deg, var(--gold) 50%, transparent 50%);
-  background-position: calc(100% - 10px) 55%, calc(100% - 6px) 55%;
-  background-size: 4px 4px, 4px 4px;
-  background-repeat: no-repeat;
-  transition: border-color 0.3s ease;
-}
-.sort select:hover { border-color: var(--gold); }
-
-.restricted-groups {
-  display: grid;
-  gap: 1.8rem;
-}
-
-.restricted-group-title {
-  font-family: var(--font-body);
-  font-size: 0.62rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--gold);
-  margin-bottom: 0.7rem;
-}
-
-.restricted-group-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  border-top: 1px solid rgba(201, 166, 107, 0.15);
-  border-left: 1px solid rgba(201, 166, 107, 0.15);
-}
-
-.ingredients.restricted-mode {
-  display: block;
   border: none;
-}
-
-.empty-state {
-  padding: 2rem;
-  border: 1px solid rgba(201, 166, 107, 0.2);
-  font-family: var(--font-display);
-  font-style: italic;
-  color: var(--whisper);
-}
-
-/* ============================================================
-   INGREDIENT CARDS
-   ============================================================ */
-.ingredients {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 0;
-  border-top: 1px solid rgba(201, 166, 107, 0.15);
-  border-left: 1px solid rgba(201, 166, 107, 0.15);
-}
-.card {
-  position: relative;
-  padding: 2rem 2rem 1.8rem;
-  border-right: 1px solid rgba(201, 166, 107, 0.15);
-  border-bottom: 1px solid rgba(201, 166, 107, 0.15);
-  background: transparent;
-  transition: background 0.5s var(--ease-silk), transform 0.5s var(--ease-silk);
+  background: none;
+  font: inherit;
+  color: var(--muted);
+  padding: 8px 12px;
   cursor: pointer;
-  overflow: hidden;
-  animation: cardRise 0.7s var(--ease-silk) both;
-  animation-delay: calc(var(--stagger, 0) * 60ms);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
 }
-@keyframes cardRise {
-  from { opacity: 0; transform: translateY(20px); filter: blur(4px); }
-  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
-}
-.card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at var(--mx, 30%) var(--my, 20%), rgba(201, 166, 107, 0.15), transparent 55%);
-  opacity: 0;
-  transition: opacity 0.6s ease;
-}
-.card::after {
-  content: "";
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
-  transform: scaleX(0);
-  transform-origin: center;
-  transition: transform 0.7s var(--ease-silk);
-}
-.card:hover { background: var(--espresso-soft); transform: translateY(-3px); }
-.card:hover::before { opacity: 1; }
-.card:hover::after { transform: scaleX(1); }
-.card:hover .grade { transform: scale(1.08) rotate(-4deg); }
-.card:hover .card-title { color: var(--gold); }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
 
-.card-index {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 0.75rem;
-  color: var(--gold);
-  opacity: 0.7;
-  margin-bottom: 1rem;
-  letter-spacing: 0.04em;
+/* ---------- generic ---------- */
+main { padding: 24px 0 80px; }
+.view { display: none; }
+.view.active { display: block; }
+
+h2 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+.section-note { color: var(--muted); font-size: 13px; margin: 0 0 18px; max-width: 68ch; }
+
+.note {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-2);
+  padding: 10px 12px;
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 14px 0;
+  max-width: 78ch;
 }
-.card-title {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 1.45rem;
-  line-height: 1.15;
-  color: var(--cream);
-  margin-bottom: 1.2rem;
-  padding-right: 3rem;
-  min-height: 3.3em;
-  transition: color 0.4s ease;
-}
-.card-risk {
-  font-family: var(--font-body);
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  color: var(--whisper);
-  margin-bottom: 0.55rem;
-  font-style: italic;
-  font-weight: 300;
-}
-.card-odor {
-  font-family: var(--font-body);
-  font-size: 0.66rem;
-  letter-spacing: 0.04em;
-  color: var(--gold-hi);
-  margin-bottom: 1.45rem;
-  line-height: 1.35;
-}
-.odor-prefix {
-  display: block;
-  color: var(--gold-hi);
-  font-size: 0.63rem;
-  letter-spacing: 0.08em;
+
+/* ---------- stats ---------- */
+.stats { display: flex; gap: 28px; flex-wrap: wrap; margin-bottom: 20px; }
+.stat-label {
+  font-size: 11px;
   text-transform: uppercase;
-  margin-bottom: 0.42rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
 }
-.odor-tags {
+.stat-value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------- controls ---------- */
+.controls {
   display: flex;
+  gap: 12px;
+  align-items: flex-end;
   flex-wrap: wrap;
-  gap: 0.38rem;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
 }
-.odor-chip {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid rgba(201, 166, 107, 0.35);
-  border-radius: 999px;
-  padding: 0.16rem 0.52rem;
-  background: rgba(201, 166, 107, 0.09);
-  color: var(--cream);
-  font-family: var(--font-body);
-  font-size: 0.62rem;
-  line-height: 1.2;
-  letter-spacing: 0.03em;
-}
-.odor-chip--confidence {
-  font-weight: 600;
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label {
+  font-size: 11px;
+  text-transform: uppercase;
   letter-spacing: 0.05em;
-  text-transform: uppercase;
+  color: var(--muted);
 }
-.odor-chip--high {
-  border-color: rgba(76, 148, 102, 0.55);
-  background: rgba(76, 148, 102, 0.2);
-  color: #d9f4e4;
+.field select, .field input {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  min-width: 130px;
 }
-.odor-chip--medium {
-  border-color: rgba(201, 166, 107, 0.62);
-  background: rgba(201, 166, 107, 0.22);
-  color: #f6ead2;
-}
-.odor-chip--low {
-  border-color: rgba(153, 78, 63, 0.6);
-  background: rgba(153, 78, 63, 0.22);
-  color: #f7dbd3;
-}
-.odor-chip--unknown {
-  border-color: rgba(140, 128, 112, 0.5);
-  background: rgba(140, 128, 112, 0.2);
-  color: #ece2d3;
-}
-.card-foot {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 1.2rem;
-  border-top: 1px solid rgba(201, 166, 107, 0.12);
-}
-.card-status {
-  font-family: var(--font-body);
-  font-size: 0.6rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
+.result-count { color: var(--muted); font-size: 12.5px; padding: 10px 0; }
+
+/* ---------- table ---------- */
+.table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+thead th {
+  text-align: left;
   font-weight: 600;
-}
-.card-status--banned     { color: var(--oxblood); filter: brightness(1.35); }
-.card-status--restricted { color: var(--amber); }
-.card-status--watchlist  { color: var(--moss); filter: brightness(1.4); }
-.card-year {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 0.95rem;
-  color: var(--whisper);
-}
-
-.grade {
-  position: absolute;
-  top: 1.8rem;
-  right: 1.8rem;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 1.6rem;
-  font-style: italic;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  transition: transform 0.5s var(--ease-silk);
-}
-.grade--A { color: var(--moss); filter: brightness(1.3); }
-.grade--B { color: var(--gold-hi); }
-.grade--C { color: var(--amber); }
-.grade--D { color: var(--amber); filter: brightness(0.9); }
-.grade--F { color: var(--oxblood); filter: brightness(1.35); }
-.grade::before {
-  content: "";
-  position: absolute;
-  inset: -4px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  opacity: 0.3;
-  transition: inset 0.5s var(--ease-silk), opacity 0.5s ease;
-}
-.card:hover .grade::before { inset: -8px; opacity: 0.5; }
-
-/* Quick-peek icon on cards */
-.card-peek {
-  position: absolute;
-  bottom: 1.2rem;
-  right: 1.5rem;
-  width: 26px; height: 26px;
-  display: grid;
-  place-items: center;
-  color: var(--gold);
-  opacity: 0;
-  transform: translateX(-6px);
-  transition: opacity 0.4s ease, transform 0.4s var(--ease-silk);
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  pointer-events: none;
-}
-.card:hover .card-peek {
-  opacity: 1;
-  transform: translateX(0);
-}
-.card-peek::after {
-  content: " →";
-}
-
-/* ============================================================
-   SIDEBAR — QUICK MOLECULE PEEK
-   ============================================================ */
-.sidebar-scrim {
-  position: fixed;
-  inset: 0;
-  background: rgba(10, 8, 7, 0.4);
-  backdrop-filter: blur(6px);
-  z-index: 20;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.5s var(--ease-silk);
-}
-:root[data-theme="light"] .sidebar-scrim {
-  background: rgba(46, 32, 24, 0.18);
-}
-.sidebar-scrim.visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.sidebar {
-  position: fixed;
-  top: 0; right: 0;
-  width: min(480px, 92vw);
-  height: 100vh;
-  background: var(--espresso);
-  border-left: 1px solid rgba(201, 166, 107, 0.25);
-  z-index: 21;
-  transform: translateX(100%);
-  transition: transform 0.7s var(--ease-luxe);
-  display: flex;
-  flex-direction: column;
-  box-shadow: -40px 0 80px rgba(0, 0, 0, 0.4);
-  overflow: hidden;
-}
-:root[data-theme="light"] .sidebar {
-  box-shadow: -40px 0 80px rgba(46, 32, 24, 0.15);
-}
-.sidebar.open {
-  transform: translateX(0);
-}
-
-.sidebar::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 3px;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
-  opacity: 0;
-  transition: opacity 0.8s ease 0.3s;
-}
-.sidebar.open::before { opacity: 1; }
-
-.sidebar-head {
-  padding: 1.8rem 2rem 1.5rem;
-  border-bottom: 1px solid rgba(201, 166, 107, 0.2);
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  flex-shrink: 0;
-}
-.sidebar-eyebrow {
-  font-family: var(--font-body);
-  font-size: 0.56rem;
-  letter-spacing: var(--tracking-wider);
+  font-size: 11px;
   text-transform: uppercase;
-  color: var(--gold);
-  margin-bottom: 0.4rem;
-}
-.sidebar-name {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 1.55rem;
-  line-height: 1.15;
-  color: var(--cream);
-  padding-right: 1rem;
-}
-.sidebar-close {
-  background: transparent;
-  border: 1px solid rgba(201, 166, 107, 0.3);
-  color: var(--cream);
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  transition: background 0.3s ease, border-color 0.3s ease, transform 0.4s var(--ease-silk);
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  line-height: 1;
-}
-.sidebar-close:hover {
-  background: var(--gold);
-  border-color: var(--gold);
-  color: var(--espresso);
-  transform: rotate(90deg);
-}
-
-.sidebar-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.8rem 2rem 2rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--gold) transparent;
-}
-.sidebar-body::-webkit-scrollbar { width: 4px; }
-.sidebar-body::-webkit-scrollbar-track { background: transparent; }
-.sidebar-body::-webkit-scrollbar-thumb { background: var(--gold); opacity: 0.5; }
-
-.sidebar-grade-block {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 1.2rem;
-  align-items: center;
-  padding: 1.4rem 0;
-  border-bottom: 1px solid rgba(201, 166, 107, 0.18);
-  margin-bottom: 1.5rem;
-}
-.sidebar-grade {
-  width: 56px; height: 56px;
-  display: grid; place-items: center;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 300;
-  font-size: 2.2rem;
-  color: var(--gold-hi);
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  position: relative;
-}
-.sidebar-grade::before {
-  content: "";
-  position: absolute;
-  inset: -5px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  opacity: 0.3;
-  animation: halo 3s var(--ease-silk) infinite;
-}
-@keyframes halo {
-  0%, 100% { inset: -5px; opacity: 0.3; }
-  50%      { inset: -9px; opacity: 0.1; }
-}
-.sidebar-grade--A { color: var(--moss); filter: brightness(1.3); }
-.sidebar-grade--B { color: var(--gold-hi); }
-.sidebar-grade--C { color: var(--amber); }
-.sidebar-grade--D { color: var(--amber); filter: brightness(0.9); }
-.sidebar-grade--F { color: var(--oxblood); filter: brightness(1.35); }
-
-.sidebar-grade-text .lbl {
-  font-family: var(--font-body);
-  font-size: 0.56rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--whisper);
-  margin-bottom: 0.3rem;
-}
-.sidebar-grade-text .txt {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1.1rem;
-  color: var(--cream);
-}
-
-.sidebar-section {
-  padding: 1.2rem 0;
-  border-bottom: 1px solid rgba(201, 166, 107, 0.18);
-}
-.sidebar-section:last-child { border-bottom: none; }
-.sidebar-section .lbl {
-  font-family: var(--font-body);
-  font-size: 0.56rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--whisper);
-  margin-bottom: 0.5rem;
-}
-.sidebar-section .val {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1.1rem;
-  color: var(--cream);
-  line-height: 1.4;
-}
-
-.sidebar-limit-bar {
-  height: 1px;
-  background: rgba(201, 166, 107, 0.2);
-  position: relative;
-  margin-top: 0.8rem;
-}
-.sidebar-limit-fill {
-  position: absolute;
-  left: 0; top: -1px;
-  height: 3px;
-  background: var(--gold);
-  width: 0%;
-  transition: width 1.4s var(--ease-silk);
-}
-
-.sidebar-qsar-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-.sidebar-qsar-item .val {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: 1.8rem;
-  line-height: 1;
-  color: var(--cream);
-  font-style: normal;
-}
-.sidebar-qsar-item .unit {
-  font-family: var(--font-body);
-  font-size: 0.6rem;
-  color: var(--whisper);
-  margin-top: 0.2rem;
   letter-spacing: 0.05em;
+  color: var(--muted);
+  padding: 9px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
 }
+tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr.clickable { cursor: pointer; }
+tbody tr.clickable:hover { background: var(--panel); }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.mono, .mono { font-family: var(--mono); font-size: 12px; }
+.name-cell { font-weight: 500; max-width: 320px; }
+.reason-cell { color: var(--muted); max-width: 280px; }
 
-.sidebar-substitute {
-  margin-top: 1rem;
-  padding: 1.2rem 1.2rem 1rem;
-  background: linear-gradient(160deg, var(--espresso-soft), var(--espresso-hi));
-  border: 1px solid rgba(201, 166, 107, 0.3);
-  position: relative;
-  overflow: hidden;
-}
-.sidebar-substitute::before {
-  content: "";
-  position: absolute;
-  top: 0; right: 0;
-  width: 100px; height: 100px;
-  background: radial-gradient(circle, rgba(201, 166, 107, 0.2), transparent 65%);
-  animation: shimmer 4s ease-in-out infinite;
-}
-@keyframes shimmer {
-  0%, 100% { opacity: 0.5; transform: scale(1); }
-  50%      { opacity: 1; transform: scale(1.2); }
-}
-.sidebar-substitute .script-label {
-  font-family: var(--font-script);
-  font-size: 1.1rem;
-  color: var(--gold);
-  transform: rotate(-3deg);
+.badge {
   display: inline-block;
-  margin-bottom: 0.3rem;
-}
-.sidebar-substitute .sub-name {
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  color: var(--cream);
-  line-height: 1.3;
-  position: relative;
-}
-
-.sidebar-cta {
-  display: block;
-  width: 100%;
-  margin-top: 1.5rem;
-  padding: 0.9rem 1.2rem;
-  background: var(--cream);
-  color: var(--espresso);
-  border: none;
-  font-family: var(--font-body);
-  font-size: 0.62rem;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: var(--tracking-wider);
+  padding: 2px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+  border: 1px solid;
+}
+.badge-banned    { color: var(--banned);   border-color: #f0c4bf; background: #fdf3f2; }
+.badge-restricted{ color: var(--restrict); border-color: #f0dcb8; background: #fdf8ef; }
+.badge-watch     { color: var(--muted);    border-color: var(--border-2); background: var(--panel); }
+.badge-pass      { color: var(--ok);       border-color: #c3e3cd; background: #f2faf5; }
+
+.empty { padding: 32px 12px; color: var(--muted); text-align: center; }
+
+/* ---------- detail ---------- */
+.detail-grid { display: grid; grid-template-columns: minmax(0,1fr) 400px; gap: 32px; }
+@media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
+
+.detail-name { font-size: 20px; font-weight: 600; margin: 0 0 2px; }
+.detail-sub { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+
+dl.facts { margin: 0; display: grid; grid-template-columns: 190px minmax(0,1fr); }
+dl.facts dt {
+  font-size: 11px;
   text-transform: uppercase;
-  cursor: pointer;
-  transition: background 0.3s ease, transform 0.3s ease;
-  text-align: center;
-}
-.sidebar-cta:hover {
-  background: var(--gold);
-  transform: translateY(-1px);
-}
-
-.sidebar-smiles {
-  font-family: "Courier New", monospace;
-  font-size: 0.72rem;
-  color: var(--gold-hi);
-  word-break: break-all;
-  background: rgba(201, 166, 107, 0.08);
-  padding: 0.6rem 0.8rem;
-  border-left: 2px solid var(--gold);
-  font-style: normal;
-}
-
-/* ============================================================
-   MOLECULE INTEL — unchanged structure, gentle additions
-   ============================================================ */
-.intel {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  gap: 0;
-  border-top: 1px solid rgba(201, 166, 107, 0.22);
-}
-.intel-left {
-  padding: 3rem 3.5rem 3rem 0;
-  border-right: 1px solid rgba(201, 166, 107, 0.22);
-}
-.intel-right { padding: 3rem 0 3rem 3.5rem; }
-
-.intel-eyebrow {
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--gold);
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-}
-.intel-eyebrow::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: rgba(201, 166, 107, 0.2);
-}
-.intel-title {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: clamp(2rem, 3.5vw, 3rem);
-  line-height: 1.05;
-  margin-bottom: 0.6rem;
-  color: var(--cream);
-}
-.intel-title em { font-style: italic; color: var(--gold); }
-.intel-cas {
-  font-family: var(--font-body);
-  font-size: 0.7rem;
   letter-spacing: 0.05em;
-  color: var(--whisper);
-  margin-bottom: 2.2rem;
+  color: var(--muted);
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
 }
+dl.facts dd {
+  margin: 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  word-break: break-word;
+}
+.hint { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
 
-.grade-block {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 1.5rem;
-  align-items: center;
-  padding: 1.8rem 0;
-  border-top: 1px solid rgba(201, 166, 107, 0.18);
-  border-bottom: 1px solid rgba(201, 166, 107, 0.18);
-  margin-bottom: 2rem;
-}
-.grade-big {
-  width: 72px; height: 72px;
-  display: grid; place-items: center;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 300;
-  font-size: 3rem;
-  color: var(--gold-hi);
-  border: 1px solid var(--gold);
-  border-radius: 50%;
+.viewer-box {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  height: 340px;
   position: relative;
-}
-.grade-big::before {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border: 1px solid var(--gold);
-  border-radius: 50%;
-  opacity: 0.25;
-  animation: halo 3s var(--ease-silk) infinite;
-}
-.grade-meaning .lbl {
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--whisper);
-  margin-bottom: 0.3rem;
-}
-.grade-meaning .txt {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1.25rem;
-  color: var(--cream);
-}
-
-.risk-row { margin-bottom: 2rem; }
-.risk-row .lbl {
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--whisper);
-  margin-bottom: 0.5rem;
-}
-.risk-row .val {
-  font-family: var(--font-display);
-  font-size: 1.15rem;
-  font-style: italic;
-  color: var(--cream);
-}
-
-.limit-block {
-  padding: 1.5rem 0 1.8rem;
-  border-top: 1px solid rgba(201, 166, 107, 0.18);
-  margin-bottom: 2rem;
-}
-.limit-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 0.8rem;
-}
-.limit-row .lbl {
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--whisper);
-}
-.limit-row .pct {
-  font-family: var(--font-display);
-  font-size: 2.2rem;
-  font-style: italic;
-  font-weight: 300;
-  color: var(--gold);
-}
-.limit-bar {
-  height: 1px;
-  background: rgba(201, 166, 107, 0.2);
-  position: relative;
-  overflow: visible;
-}
-.limit-fill {
-  position: absolute;
-  left: 0; top: -1px;
-  height: 3px;
-  background: var(--gold);
-  width: 20%;
-  transition: width 1.6s var(--ease-silk);
-}
-.limit-scale {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.8rem;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 0.75rem;
-  color: var(--whisper);
-}
-
-.meta-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
-  padding: 1.5rem 0;
-  border-top: 1px solid rgba(201, 166, 107, 0.18);
-  border-bottom: 1px solid rgba(201, 166, 107, 0.18);
-  margin-bottom: 2rem;
-}
-.meta-grid .lbl {
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--whisper);
-  margin-bottom: 0.4rem;
-}
-.meta-grid .val {
-  font-family: var(--font-display);
-  font-size: 1.3rem;
-  font-style: italic;
-  color: var(--cream);
-}
-
-.substitute {
-  position: relative;
-  padding: 2.4rem 2rem 2rem;
-  background: linear-gradient(160deg, var(--espresso-soft) 0%, var(--espresso-hi) 100%);
-  border: 1px solid rgba(201, 166, 107, 0.35);
   overflow: hidden;
 }
-.substitute::before {
-  content: "";
-  position: absolute;
-  top: 0; right: 0;
-  width: 140px; height: 140px;
-  background: radial-gradient(circle, rgba(201, 166, 107, 0.18), transparent 65%);
-  animation: shimmer 4s ease-in-out infinite;
-}
-.substitute .badge {
-  position: absolute;
-  top: -11px;
-  left: 2rem;
-  background: var(--espresso);
-  padding: 0 0.8rem;
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--gold);
-}
-.substitute .script-label {
-  font-family: var(--font-script);
-  font-size: 1.45rem;
-  color: var(--gold);
-  margin-bottom: 0.3rem;
-  transform: rotate(-3deg);
-  display: inline-block;
-}
-.substitute .sub-name {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 400;
-  line-height: 1.2;
-  color: var(--cream);
-  margin-bottom: 0.8rem;
-}
-.substitute .sub-match {
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  color: var(--gold);
-  letter-spacing: 0.08em;
-}
-.substitute .sub-foot {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 0.85rem;
-  color: var(--whisper);
-  margin-top: 1.2rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(201, 166, 107, 0.18);
-}
-
-.viewer {
-  background: linear-gradient(180deg, #0D0806 0%, #14100C 100%);
-  border: 1px solid rgba(201, 166, 107, 0.25);
-  aspect-ratio: 1 / 1;
-  display: grid;
-  place-items: center;
-  position: relative;
-  margin-bottom: 2rem;
-  overflow: hidden;
-}
-:root[data-theme="light"] .viewer {
-  background: linear-gradient(180deg, #F3E8D7 0%, #EADDC7 100%);
-}
-.viewer::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 50% 40%, rgba(201, 166, 107, 0.08), transparent 60%);
-}
-.viewer .corner {
-  position: absolute;
-  width: 14px; height: 14px;
-  border: 1px solid var(--gold);
-}
-.viewer .corner--tl { top: 12px; left: 12px; border-right: none; border-bottom: none; }
-.viewer .corner--tr { top: 12px; right: 12px; border-left: none; border-bottom: none; }
-.viewer .corner--bl { bottom: 12px; left: 12px; border-right: none; border-top: none; }
-.viewer .corner--br { bottom: 12px; right: 12px; border-left: none; border-top: none; }
-.viewer .mol-placeholder {
-  font-family: var(--font-accent);
-  font-size: 0.7rem;
-  letter-spacing: var(--tracking-wider);
-  color: var(--whisper);
-  text-transform: uppercase;
-}
-
-#mol-container {
-  width: 100%;
-  height: 100%;
-  min-height: 340px;
-  position: relative;
-  z-index: 2;
-}
-
+#mol-container { width: 100%; height: 100%; display: none; position: relative; }
 #mol-fallback {
   position: absolute;
   inset: 0;
-  display: none;
+  display: grid;
   place-items: center;
   text-align: center;
-  padding: 1.2rem;
-  z-index: 2;
-  color: var(--whisper);
-  font-family: var(--font-display);
-  font-style: italic;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 16px;
 }
+.viewer-caption { color: var(--muted); font-size: 12px; margin-top: 8px; }
 
-.viewer-badge {
-  position: absolute;
-  top: 14px;
-  z-index: 3;
-  padding: 0.2rem 0.55rem;
-  border: 1px solid rgba(201, 166, 107, 0.35);
-  background: rgba(10, 8, 7, 0.45);
-  font-family: var(--font-body);
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--cream-soft);
-}
-:root[data-theme="light"] .viewer-badge {
-  background: rgba(235, 224, 210, 0.7);
-  color: var(--cream);
-}
-
-#intel-molecule-tag { left: 14px; }
-#viewer-mode-badge { right: 14px; display: none; }
-
-.qsar {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-  border-top: 1px solid rgba(201, 166, 107, 0.22);
-  border-bottom: 1px solid rgba(201, 166, 107, 0.22);
-}
-.qsar-item {
-  padding: 1.5rem 1.8rem;
-  border-right: 1px solid rgba(201, 166, 107, 0.12);
-}
-.qsar-item:last-child { border-right: none; }
-.qsar-item .lbl {
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--whisper);
-  margin-bottom: 0.5rem;
-}
-.qsar-item .val {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: 2.4rem;
-  line-height: 1;
-  color: var(--cream);
-}
-.qsar-item .unit {
-  font-family: var(--font-body);
-  font-size: 0.65rem;
-  color: var(--whisper);
-  letter-spacing: 0.05em;
-  margin-top: 0.3rem;
-}
-
-.smiles { padding: 1.5rem 0; }
-.smiles .lbl {
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: var(--whisper);
-  margin-bottom: 0.6rem;
-}
-.smiles code {
-  font-family: "Courier New", monospace;
-  font-size: 0.85rem;
-  color: var(--gold-hi);
-  word-break: break-all;
-  background: rgba(201, 166, 107, 0.06);
-  padding: 0.8rem 1rem;
-  display: block;
-  border-left: 2px solid var(--gold);
-}
-
-/* ============================================================
-   AUDIT
-   ============================================================ */
-.audit-frame {
-  margin-top: 2rem;
-  padding: 5rem 3rem;
-  border: 1px solid rgba(201, 166, 107, 0.22);
-  background: linear-gradient(180deg, transparent, rgba(201, 166, 107, 0.02));
-  text-align: center;
-  position: relative;
-}
-.audit-frame::before,
-.audit-frame::after {
-  content: "";
-  position: absolute;
-  width: 60px; height: 1px;
-  background: var(--gold);
-}
-.audit-frame::before { top: 2rem; left: 50%; transform: translateX(-50%); }
-.audit-frame::after  { bottom: 2rem; left: 50%; transform: translateX(-50%); }
-
-.audit-frame .script {
-  font-family: var(--font-script);
-  font-size: 2.2rem;
-  color: var(--gold);
-  margin-bottom: 0.5rem;
+.tag {
   display: inline-block;
-  transform: rotate(-3deg);
-  animation: gentleSway 6s ease-in-out infinite;
-}
-.audit-frame .headline {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: 2.8rem;
-  color: var(--cream);
-  margin-bottom: 1rem;
-  line-height: 1.05;
-}
-.audit-frame .headline em { font-style: italic; color: var(--gold); }
-.audit-frame p {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1.1rem;
-  color: var(--cream-soft);
-  max-width: 52ch;
-  margin: 0 auto 2.5rem;
-  line-height: 1.6;
-}
-.upload-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 1rem;
-  background: var(--cream);
-  color: var(--espresso);
-  border: none;
-  padding: 1.1rem 2.2rem;
-  font-family: var(--font-body);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background 0.4s ease, transform 0.4s var(--ease-silk), box-shadow 0.4s ease;
-  position: relative;
-  overflow: hidden;
-}
-.upload-btn::before {
-  content: "";
-  position: absolute;
-  top: 0; left: -100%;
-  width: 100%; height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-  transition: left 0.7s var(--ease-silk);
-}
-.upload-btn:hover {
-  background: var(--gold);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(201, 166, 107, 0.3);
-}
-.upload-btn:hover::before { left: 100%; }
-.upload-btn svg { width: 14px; height: 14px; }
-
-.audit-help {
-  font-family: var(--font-body);
-  font-size: 0.7rem;
-  color: var(--whisper);
-  margin-top: 1.8rem;
-}
-.audit-help code {
-  font-family: "Courier New", monospace;
-  color: var(--gold);
-  background: rgba(201, 166, 107, 0.08);
-  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--border-2);
+  background: var(--panel);
+  border-radius: 3px;
+  padding: 1px 7px;
+  font-size: 12px;
+  margin: 0 4px 4px 0;
 }
 
-/* ============================================================
-   FOOTER
-   ============================================================ */
-.footer {
-  position: relative;
-  z-index: 2;
-  padding: 3rem 3.5rem 2rem;
-  border-top: 1px solid rgba(201, 166, 107, 0.18);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-family: var(--font-body);
-  font-size: 0.62rem;
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--whisper);
-}
-.footer .script {
-  font-family: var(--font-script);
-  font-size: 1.3rem;
-  color: var(--gold);
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
-@media (max-width: 900px) {
-  .masthead { grid-template-columns: 1fr; gap: 1rem; padding: 1.5rem; }
-  .search { justify-self: stretch; width: 100%; }
-  .edition { text-align: left; }
-  .tabs { padding: 1rem 1.5rem; gap: 1.8rem; overflow-x: auto; }
-  .network-canvas { height: 480px; }
-  .view { padding: 2rem 1.5rem 4rem; }
-  .editorial-header { grid-template-columns: 1fr; gap: 1rem; }
-  .editorial-header .subline { text-align: left; justify-self: start; }
-  .metrics { grid-template-columns: repeat(2, 1fr); }
-  .metric:nth-child(2) { border-right: none; }
-  .intel { grid-template-columns: 1fr; }
-  .intel-left { padding: 2rem 0; border-right: none; border-bottom: 1px solid rgba(201, 166, 107, 0.22); }
-  .intel-right { padding: 2rem 0; }
-  .ingredients { grid-template-columns: 1fr; }
-  .cursor-aura { display: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-</style>
-
-<style>
-/* ============================================================
-   ODOR NETWORK VIEW
-   ============================================================ */
-.network-wrap { position: relative; margin-top: 2rem; }
-
-.network-canvas {
-  width: 100%;
-  height: 560px;
-  background: var(--espresso);
-  border: 1px solid rgba(201,166,107,0.15);
-  border-radius: 2px;
-}
-:root[data-theme="light"] .network-canvas { border-color: rgba(46,32,24,0.18) !important; }
-
-.network-legend {
-  position: absolute;
-  top: 14px; right: 14px;
-  background: rgba(14,10,8,0.88);
-  padding: 10px 14px;
-  border-radius: 5px;
-  border: 1px solid rgba(201,166,107,0.2);
-  font-family: var(--font-body);
-  color: var(--cream);
-  min-width: 130px;
-  max-height: 520px;
-  overflow-y: auto;
-  z-index: 5;
-}
-:root[data-theme="light"] .network-legend {
-  background: rgba(245,237,227,0.92);
-  border-color: rgba(46,32,24,0.2);
-}
-.network-legend-title {
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--gold);
-  margin-bottom: 8px;
-  padding-bottom: 5px;
-  border-bottom: 1px solid rgba(201,166,107,0.2);
-}
-.network-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 4px 0;
-  font-size: 11px;
-  opacity: 0.85;
-}
-.network-legend-item.highlighted { opacity: 1; font-weight: 600; }
-.network-legend-dot {
-  width: 11px; height: 11px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  border: 1.5px solid;
-}
-.network-status {
+/* ---------- audit ---------- */
+.dropzone {
+  border: 1px dashed var(--border-2);
+  border-radius: 4px;
+  padding: 28px;
   text-align: center;
-  padding: 0.4rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.07em;
-  color: var(--gold);
-  opacity: 0.55;
-  font-family: var(--font-body);
-  margin-top: 0.5rem;
+  background: var(--panel);
+  color: var(--muted);
+}
+.dropzone.dragover { border-color: var(--accent); background: #f4f7fe; }
+.btn {
+  appearance: none;
+  font: inherit;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border-2);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.btn:hover { background: var(--panel); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: #244da8; }
+
+.verdict { padding: 12px 14px; border-radius: 4px; border: 1px solid; margin: 20px 0 14px; font-weight: 500; }
+.verdict-pass { color: var(--ok); border-color: #c3e3cd; background: #f2faf5; }
+.verdict-fail { color: var(--banned); border-color: #f0c4bf; background: #fdf3f2; }
+
+/* ---------- network ---------- */
+#network-canvas {
+  height: 560px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+}
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0; font-size: 12px; color: var(--muted); }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.25); }
+
+footer {
+  border-top: 1px solid var(--border);
+  padding: 18px 0 40px;
+  color: var(--muted);
+  font-size: 12px;
 }
 </style>
-
 </head>
 <body>
 
-<!-- Custom cursor aura -->
-<div class="cursor-aura" id="cursor-aura"></div>
-
-<!-- Ambient mist background -->
-<div class="ambient-mist" aria-hidden="true">
-  <span></span><span></span><span></span>
-</div>
-
-<!-- ============================================================
-     MASTHEAD
-     ============================================================ -->
-<header class="masthead">
-  <div class="brand">
-    <div class="brand-mark">Nose What's <em>Legal</em></div>
-    <div class="brand-tag">Maison de<br>Conformité</div>
-  </div>
-
-  <div class="search">
-    <input id="search-input" list="molecule-suggestions" type="text" placeholder="Recherche un ingrédient…" aria-label="Search">
-    <datalist id="molecule-suggestions"></datalist>
-  </div>
-
-  <div class="edition">
-    IFRA 51<sup>e</sup> Amendement
-    <small>Tokyo · Spring 2026</small>
-    <div class="edition-controls">
-      <label for="theme-select">Interface Mode</label>
-      <select id="theme-select" aria-label="Theme selector">
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
+<header>
+  <div class="wrap">
+    <div class="masthead">
+      <h1>Nose What's Legal</h1>
+      <span class="tagline">IFRA Category 4 (fine fragrance) restriction lookup</span>
+      <div class="masthead-search">
+        <input id="search-input" type="search" list="molecule-suggestions"
+               placeholder="Search ingredient…" autocomplete="off" />
+        <datalist id="molecule-suggestions"></datalist>
+      </div>
     </div>
+    <nav>
+      <button class="tab active" data-view="directory">Directory</button>
+      <button class="tab" data-view="detail">Ingredient</button>
+      <button class="tab" data-view="audit">Formula audit</button>
+      <button class="tab" data-view="network">Odor network</button>
+    </nav>
   </div>
 </header>
 
-<!-- ============================================================
-     TABS
-     ============================================================ -->
-<nav class="tabs" role="tablist">
-  <button class="tab active" data-view="directory" role="tab">
-    <span class="numeral">I.</span> Répertoire
-  </button>
-  <button class="tab" data-view="intel" role="tab">
-    <span class="numeral">II.</span> Dossier Molécule
-  </button>
-  <button class="tab" data-view="audit" role="tab">
-    <span class="numeral">III.</span> Audit Réglementaire
-  </button>
-  <button class="tab" data-view="network" role="tab">
-    <span class="numeral">IV.</span> Réseau Olfactif
-  </button>
-</nav>
+<main class="wrap">
 
-<!-- ============================================================
-     VIEW 1 — DIRECTORY
-     ============================================================ -->
-<section class="view active" id="view-directory">
-  <header class="editorial-header">
-    <div>
-      <span class="eyebrow">Volume I · Répertoire</span>
-      <h1 data-spray>The <em>Ingredient</em><br>Directory</h1>
-    </div>
-    <div class="script">— restricted, banned &amp; watchlisted</div>
-    <div class="subline">
-      A curated catalogue of fragrance materials under the IFRA 51<sup>st</sup> Amendment, with a proprietary safety grading by molecular structure.
-    </div>
-  </header>
+  <!-- ============ DIRECTORY ============ -->
+  <section class="view active" id="view-directory">
+    <h2>Ingredient directory</h2>
+    <p class="section-note">
+      Restricted and banned materials from the IFRA Category 4 standard, plus unregulated
+      molecules flagged as structural neighbours of restricted ones. Click a row for detail.
+    </p>
 
-  <div class="metrics">
-    <div class="metric">
-      <div class="label">Total Ingredients</div>
-      <div class="value" id="metric-total" data-count="314">314</div>
-    </div>
-    <div class="metric metric--ban">
-      <div class="label">Banned</div>
-      <div class="value" id="metric-banned">91 <small>F</small></div>
-    </div>
-    <div class="metric metric--warn">
-      <div class="label">Restricted</div>
-      <div class="value" id="metric-restricted">172 <small>B–D</small></div>
-    </div>
-    <div class="metric metric--accent">
-      <div class="label">AI Watchlist</div>
-      <div class="value" id="metric-watchlist">51 <small>⁂</small></div>
-    </div>
-  </div>
+    <div class="stats" id="stats"></div>
 
-  <div class="filterbar">
-    <div class="filters">
-      <button class="filter active" data-filter="all">Tout voir</button>
-      <span class="dot">·</span>
-      <button class="filter" data-filter="banned">Banned</button>
-      <span class="dot">·</span>
-      <button class="filter" data-filter="restricted">Restricted</button>
-      <span class="dot">·</span>
-      <button class="filter" data-filter="safe">Safe &amp; Watchlist</button>
-    </div>
-    <div class="sort">
-      <label>Classement</label>
-      <select id="sort-select">
-        <option value="alpha">Alphabétique</option>
-        <option value="year-desc">Year — Newest</option>
-        <option value="year-asc">Year — Oldest</option>
-      </select>
-    </div>
-    <div class="sort">
-      <label>Odor Confidence</label>
-      <select id="odor-confidence-filter-select">
-        <option value="all">All</option>
-        <option value="high">High</option>
-        <option value="medium">Medium</option>
-        <option value="low">Low</option>
-        <option value="unknown">Unknown</option>
-      </select>
-    </div>
-    <div class="sort">
-      <label>Odor Category</label>
-      <select id="odor-category-filter-select">
-        <option value="all">All</option>
-      </select>
-    </div>
-  </div>
-
-  <div class="ingredients" id="ingredients"></div>
-</section>
-
-<!-- ============================================================
-     VIEW 2 — MOLECULE INTEL
-     ============================================================ -->
-<section class="view" id="view-intel">
-  <header class="editorial-header">
-    <div>
-      <span class="eyebrow">Volume II · Dossier</span>
-      <h1 id="intel-hero-title" data-spray>Molécule<br><em>nº 54464-57-2</em></h1>
-    </div>
-    <div class="script" id="intel-script">— OTNE</div>
-    <div class="subline">
-      A close inspection of an IFRA-restricted aromatic, its structural neighbours, and the safer alternative our engine recommends.
-    </div>
-  </header>
-
-  <div class="intel">
-    <div class="intel-left">
-      <div class="intel-eyebrow">Fragrance Profile</div>
-      <h2 class="intel-title" id="intel-name">1-(Octahydro-<em>tetramethyl</em>-naphthalenyl) ethanone</h2>
-      <div class="intel-cas" id="intel-cas">Official IFRA Regulated Material · CAS 54464-57-2</div>
-
-      <div class="grade-block">
-        <div class="grade-big" id="intel-grade">B</div>
-        <div class="grade-meaning">
-          <div class="lbl">Safety Grade</div>
-          <div class="txt" id="intel-grade-meaning">Restricted — controlled use</div>
-        </div>
+    <div class="controls">
+      <div class="field">
+        <label for="filter-status">Status</label>
+        <select id="filter-status">
+          <option value="all">All</option>
+          <option value="banned">Banned</option>
+          <option value="restricted">Restricted</option>
+          <option value="safe">Unregulated (candidates)</option>
+        </select>
       </div>
-
-      <div class="risk-row">
-        <div class="lbl">Primary Risk</div>
-        <div class="val" id="intel-risk">Skin Sensitization · Systemic Toxicity</div>
+      <div class="field">
+        <label for="filter-odor">Inferred odor</label>
+        <select id="filter-odor"><option value="all">All</option></select>
       </div>
-
-      <div class="risk-row">
-        <div class="lbl">Could Smell Like (Structure-Based)</div>
-        <div class="val" id="intel-odor">Woody, ambery</div>
+      <div class="field">
+        <label for="filter-confidence">Odor confidence</label>
+        <select id="filter-confidence">
+          <option value="all">All</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
       </div>
-
-      <div class="limit-block">
-        <div class="limit-row">
-          <div class="lbl">Skin Limit · Category 4</div>
-          <div class="pct" id="intel-limit">20%</div>
-        </div>
-        <div class="limit-bar">
-          <div class="limit-fill" id="intel-limit-fill" style="width: 20%"></div>
-        </div>
-        <div class="limit-scale">
-          <span>0%</span>
-          <span>Unrestricted</span>
-        </div>
+      <div class="field">
+        <label for="sort-by">Sort</label>
+        <select id="sort-by">
+          <option value="name">Name</option>
+          <option value="limit-asc">Limit, lowest first</option>
+          <option value="limit-desc">Limit, highest first</option>
+          <option value="mw">Molecular weight</option>
+        </select>
       </div>
+      <div class="field" style="flex:1; min-width:180px;">
+        <label for="filter-text">Filter by name or CAS</label>
+        <input id="filter-text" type="text" placeholder="e.g. coumarin, 91-64-5" />
+      </div>
+    </div>
 
-      <div class="meta-grid">
+    <div class="result-count" id="result-count"></div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Ingredient</th>
+            <th>CAS</th>
+            <th>Status</th>
+            <th>Limit</th>
+            <th>Restriction reason</th>
+            <th>Inferred odor</th>
+            <th>MW</th>
+            <th>LogP</th>
+          </tr>
+        </thead>
+        <tbody id="directory-rows"></tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <strong>Reading the limit column.</strong> A limit of 0% means the material is banned in
+      Category 4. Anything above 0% is the maximum permitted concentration in the finished
+      product. Materials marked <em>unregulated</em> carry no IFRA Category 4 limit; they appear
+      here only because their structure resembles a restricted material, which is a reason to
+      look, not a finding.
+    </div>
+  </section>
+
+  <!-- ============ DETAIL ============ -->
+  <section class="view" id="view-detail">
+    <div id="detail-empty" class="empty">Select an ingredient from the directory or use the search box.</div>
+
+    <div id="detail-body" style="display:none;">
+      <h2 class="detail-name" id="detail-name"></h2>
+      <p class="detail-sub" id="detail-sub"></p>
+
+      <div class="detail-grid">
         <div>
-          <div class="lbl">Year Assessed</div>
-          <div class="val" id="intel-year">2020</div>
+          <dl class="facts">
+            <dt>Status</dt>            <dd id="d-status"></dd>
+            <dt>Category 4 limit</dt>  <dd id="d-limit"></dd>
+            <dt>Restriction reason</dt><dd id="d-risk"></dd>
+            <dt>Standard year</dt>     <dd id="d-year"></dd>
+            <dt>CAS</dt>               <dd id="d-cas" class="mono"></dd>
+            <dt>SMILES</dt>            <dd id="d-smiles" class="mono"></dd>
+            <dt>Molecular weight</dt>  <dd id="d-mw"></dd>
+            <dt>LogP</dt>              <dd id="d-logp"></dd>
+            <dt>Inferred odor</dt>     <dd id="d-odor"></dd>
+            <dt>Nearest neighbour</dt> <dd id="d-neighbour"></dd>
+          </dl>
         </div>
+
         <div>
-          <div class="lbl">Regulatory Body</div>
-          <div class="val">IFRA · RIFM</div>
-        </div>
-      </div>
-
-      <div class="substitute">
-        <span class="badge">AI Substitute</span>
-        <div class="script-label">a safer neighbour —</div>
-        <div class="sub-name" id="intel-substitute">Octahydro-dimethylnaphthalene-2-carbaldehyde</div>
-        <div class="sub-match" id="intel-substitute-match">◦ 42.9% Tanimoto Match · Morgan Fingerprints</div>
-        <div class="sub-foot">Higher match percentage indicates a more structurally similar alternative.</div>
-      </div>
-    </div>
-
-    <div class="intel-right">
-      <div class="intel-eyebrow">Molecular Atelier</div>
-
-      <div class="viewer">
-        <div class="corner corner--tl"></div>
-        <div class="corner corner--tr"></div>
-        <div class="corner corner--bl"></div>
-        <div class="corner corner--br"></div>
-        <div class="viewer-badge" id="intel-molecule-tag">3D Molecule</div>
-        <div class="viewer-badge" id="viewer-mode-badge">No 3D coordinates</div>
-        <div id="mol-container"></div>
-        <div id="mol-fallback"></div>
-      </div>
-
-      <div class="qsar">
-        <div class="qsar-item">
-          <div class="lbl">Molecular Weight</div>
-          <div class="val" id="intel-mw">234.38</div>
-          <div class="unit">g / mol</div>
-        </div>
-        <div class="qsar-item">
-          <div class="lbl">LogP — Lipophilicity</div>
-          <div class="val" id="intel-logp">4.52</div>
-          <div class="unit">octanol / water</div>
-        </div>
-      </div>
-
-      <div class="smiles">
-        <div class="lbl">SMILES Notation</div>
-        <code id="intel-smiles">CC1CC2=C(CC1(C)C(C)=O)C(C)(C)CCC2</code>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============================================================
-     VIEW 3 — REGULATORY AUDIT
-     ============================================================ -->
-<section class="view" id="view-audit">
-  <header class="editorial-header">
-    <div>
-      <span class="eyebrow">Volume III · Audit</span>
-      <h1 data-spray>The <em>Regulatory</em><br>Audit Trail</h1>
-    </div>
-    <div class="script">— cross-reference your formula</div>
-    <div class="subline">
-      Upload a composition and we shall cross-reference each ingredient against the IFRA Standards of the 51<sup>st</sup> Amendment.
-    </div>
-  </header>
-
-  <div class="audit-frame">
-    <div class="script">awaiting</div>
-    <div class="headline">a <em>formula</em> to audit</div>
-    <p>Please upload a CSV file containing your composition. Each row should declare one ingredient and its concentration, and we shall return a verdict — pass, restrict, or ban — within moments.</p>
-    <button class="upload-btn" id="upload-btn" type="button">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 3v14m0-14l-5 5m5-5l5 5M4 21h16"/>
-      </svg>
-      Upload CSV Formula
-    </button>
-    <input id="audit-file" type="file" accept=".csv" hidden>
-    <div class="audit-help">
-      Expected columns: <code>ingredient</code>, <code>percentage</code>
-    </div>
-    <div class="audit-results" id="audit-results"></div>
-  </div>
-</section>
-
-<!-- ============================================================
-     VIEW 4 — ODOR NETWORK
-     ============================================================ -->
-<section class="view" id="view-network">
-  <header class="editorial-header">
-    <div>
-      <span class="eyebrow">Volume IV · Réseau</span>
-      <h1 data-spray>The <em>Olfactory</em><br>Network</h1>
-    </div>
-    <div class="script">— molecules that smell alike</div>
-    <div class="subline">
-      Each node is a fragrance ingredient. Nodes of the same colour share an odour family — they <em>smell alike</em>. Edges connect neighbours within the same family. Musk &amp; Vanilla are highlighted. Click any node to open its full dossier.
-    </div>
-  </header>
-
-  <div class="filterbar">
-    <div class="filters" id="network-family-filters">
-      <button class="filter active" data-family="all">Tout voir</button>
-      <span class="dot">·</span>
-      <button class="filter" data-family="musk">Musk</button>
-      <span class="dot">·</span>
-      <button class="filter" data-family="vanilla">Vanilla</button>
-      <span class="dot">·</span>
-      <button class="filter" data-family="floral">Floral</button>
-      <span class="dot">·</span>
-      <button class="filter" data-family="citrus">Citrus</button>
-      <span class="dot">·</span>
-      <button class="filter" data-family="woody">Woody</button>
-    </div>
-  </div>
-
-  <div class="network-wrap">
-    <div id="network-canvas" class="network-canvas"></div>
-    <div id="network-legend" class="network-legend">
-      <div class="network-legend-title">Odour Families</div>
-    </div>
-  </div>
-  <div id="network-status" class="network-status">Select the tab to load the network…</div>
-</section>
-
-<!-- ============================================================
-     SIDEBAR — quick-peek molecule details
-     ============================================================ -->
-<div class="sidebar-scrim" id="sidebar-scrim"></div>
-<aside class="sidebar" id="sidebar" aria-hidden="true">
-  <div class="sidebar-head">
-    <div>
-      <div class="sidebar-eyebrow">Quick Dossier</div>
-      <div class="sidebar-name" id="sidebar-name">—</div>
-    </div>
-    <button class="sidebar-close" id="sidebar-close" aria-label="Close">×</button>
-  </div>
-
-  <div class="sidebar-body">
-    <div class="sidebar-grade-block">
-      <div class="sidebar-grade" id="sidebar-grade">B</div>
-      <div class="sidebar-grade-text">
-        <div class="lbl">Safety Grade</div>
-        <div class="txt" id="sidebar-grade-meaning">Restricted — controlled use</div>
-      </div>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="lbl">Primary Risk</div>
-      <div class="val" id="sidebar-risk">—</div>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="lbl">Could Smell Like (Structure-Based)</div>
-      <div class="val" id="sidebar-odor">—</div>
-      <div class="unit" id="sidebar-odor-basis" style="margin-top:0.45rem;color:var(--whisper);font-family:var(--font-body);font-size:0.66rem;letter-spacing:0.04em;line-height:1.35;">—</div>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="lbl">Skin Limit</div>
-      <div class="val" id="sidebar-limit">—</div>
-      <div class="sidebar-limit-bar">
-        <div class="sidebar-limit-fill" id="sidebar-limit-fill"></div>
-      </div>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="lbl">Status &amp; Year</div>
-      <div class="val"><span id="sidebar-status">—</span> <span style="color: var(--whisper); font-size: 0.85em;">· <span id="sidebar-year">—</span></span></div>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="sidebar-qsar-grid">
-        <div class="sidebar-qsar-item">
-          <div class="lbl">Mol. Weight</div>
-          <div class="val" id="sidebar-mw">—</div>
-          <div class="unit">g / mol</div>
-        </div>
-        <div class="sidebar-qsar-item">
-          <div class="lbl">LogP</div>
-          <div class="val" id="sidebar-logp">—</div>
-          <div class="unit">oct / water</div>
+          <div class="viewer-box">
+            <div id="mol-container"></div>
+            <div id="mol-fallback">3D coordinates unavailable</div>
+          </div>
+          <p class="viewer-caption">
+            Conformer generated with RDKit (ETKDG + MMFF), or retrieved from PubChem.
+            One low-energy conformer, not a bioactive pose.
+          </p>
         </div>
       </div>
     </div>
+  </section>
 
-    <div class="sidebar-section">
-      <div class="lbl">SMILES</div>
-      <div class="val sidebar-smiles" id="sidebar-smiles">—</div>
+  <!-- ============ AUDIT ============ -->
+  <section class="view" id="view-audit">
+    <h2>Formula audit</h2>
+    <p class="section-note">
+      Upload a CSV with <code class="mono">ingredient</code> and <code class="mono">percentage</code>
+      columns. Each row is matched by exact name against the directory and checked against its
+      Category 4 limit.
+    </p>
+
+    <div class="dropzone" id="dropzone">
+      <p style="margin:0 0 10px;">Drop a CSV here, or</p>
+      <button class="btn btn-primary" id="file-button">Choose file</button>
+      <input type="file" id="file-input" accept=".csv,text/csv" hidden />
+      <p style="margin:12px 0 0; font-size:12px;">
+        Expected header: <code class="mono">ingredient,percentage</code>
+      </p>
     </div>
 
-    <div class="sidebar-section">
-      <div class="sidebar-substitute">
-        <div class="script-label">a safer neighbour —</div>
-        <div class="sub-name" id="sidebar-substitute">—</div>
-      </div>
+    <div id="audit-output"></div>
+
+    <div class="note">
+      Name matching is exact and case-insensitive. An ingredient your supplier spells differently
+      from IFRA will fall through as "not in registry" rather than being flagged — so a clean pass
+      is not proof of compliance.
     </div>
+  </section>
 
-    <button class="sidebar-cta" id="sidebar-cta">Open Full Dossier →</button>
-  </div>
-</aside>
+  <!-- ============ NETWORK ============ -->
+  <section class="view" id="view-network">
+    <h2>Odor network</h2>
+    <p class="section-note">
+      Every ingredient placed in an inferred odor family. Edges connect members of the same family.
+    </p>
+    <div class="legend" id="network-legend"></div>
+    <div id="network-canvas"></div>
+    <p class="result-count" id="network-status">Open this tab to build the graph.</p>
 
-<!-- ============================================================
-     FOOTER
-     ============================================================ -->
-<footer class="footer">
-  <div>© MMXXVI · Nose What's Legal · Maison de Conformite</div>
-  <div class="script">— Mini Capstone, Spring 2026 —</div>
-  <div>IFRA 51<sup>e</sup> · RIFM · Cheminformatic Atelier</div>
+    <div class="note">
+      <strong>What the edges mean.</strong> Families are assigned by keyword match on the
+      ingredient name, falling back to SMARTS substructure patterns — not by measured odor data.
+      Edges are drawn between same-family members and capped at 12 per family for legibility, so
+      the graph shows how the heuristic grouped things, not olfactory similarity.
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  Data: IFRA Standards, Category 4 (fine fragrance). Structures resolved to SMILES via CAS and
+  name lookup. Descriptors and fingerprints computed with RDKit. Not regulatory advice — verify
+  against the current IFRA Standard before formulating.
 </footer>
 
-<!-- ============================================================
-     DATA + INTERACTIONS
-     ============================================================ -->
 <script>
-/* =====================================================
-   FALLBACK DEMO DATA — shown when /api endpoints
-   are unavailable (i.e. when viewed as static HTML).
-   Remove or replace once your FastAPI backend is live.
-   ===================================================== */
-const DEMO_INGREDIENTS = [
-  {
-    name: "Atranol",
-    risk: "Allergen — Oakmoss contaminant",
-    status: "Banned",
-    replacement: "Treemoss (low-atranol distillate)",
-    desc: "CAS: 526-37-4 · Oakmoss allergen",
-    smiles: "Cc1cc(O)c(C=O)c(O)c1",
-    year: "2017", limit: 0, mol_wt: 166.17, logp: 1.89, mol_block: null,
-  },
-  {
-    name: "Hydroxycitronellal",
-    risk: "Skin Sensitization",
-    status: "Restricted",
-    replacement: "Lilial-free muguet accord",
-    desc: "CAS: 107-75-5 · Lily-of-the-valley aldehyde",
-    smiles: "CC(C)(O)CCCC(C)CC=O",
-    year: "2019", limit: 1.0, mol_wt: 172.27, logp: 1.52, mol_block: null,
-  },
-  {
-    name: "Methyl Eugenol",
-    risk: "Carcinogenic potential",
-    status: "Banned",
-    replacement: "Methyl isoeugenol (low-carcinogen)",
-    desc: "CAS: 93-15-2 · Clove-scented phenylpropanoid",
-    smiles: "COc1ccc(CC=C)cc1OC",
-    year: "2021", limit: 0, mol_wt: 178.23, logp: 2.51, mol_block: null,
-  },
-  {
-    name: "Lilial",
-    risk: "Reproductive toxicity",
-    status: "Banned",
-    replacement: "Florhydral · Cyclamen aldehyde",
-    desc: "CAS: 80-54-6 · Butylphenyl methylpropional",
-    smiles: "CC(C=O)Cc1ccc(cc1)C(C)(C)C",
-    year: "2022", limit: 0, mol_wt: 204.31, logp: 4.07, mol_block: null,
-  },
-  {
-    name: "OTNE",
-    risk: "Skin Sensitization · Systemic Toxicity",
-    status: "Restricted",
-    replacement: "Iso E Super · Habanolide",
-    desc: "CAS: 54464-57-2 · Woody-amber ketone",
-    smiles: "CC1CC2=C(CC1(C)C(C)=O)C(C)(C)CCC2",
-    year: "2020", limit: 20, mol_wt: 234.38, logp: 4.52, mol_block: null,
-  },
-  {
-    name: "Benzyl Salicylate",
-    risk: "Mild sensitizer",
-    status: "Restricted",
-    replacement: "Methyl salicylate (Category-dependent)",
-    desc: "CAS: 118-58-1 · Balsamic floral fixative",
-    smiles: "O=C(OCc1ccccc1)c1ccccc1O",
-    year: "2018", limit: 9.0, mol_wt: 228.24, logp: 3.94, mol_block: null,
-  },
-  {
-    name: "Iso E Super",
-    risk: "Under review",
-    status: "Watchlist",
-    replacement: "Cashmeran · Norlimbanol",
-    desc: "CAS: 54464-57-2 · Velvety woody-amber",
-    smiles: "CC1CCC2(C)CC(C)CC(=O)C12C",
-    year: "2024", limit: 100, mol_wt: 234.38, logp: 4.31, mol_block: null,
-  },
-  {
-    name: "Galaxolide",
-    risk: "Environmental persistence",
-    status: "Watchlist",
-    replacement: "Habanolide · Exaltolide",
-    desc: "CAS: 1222-05-5 · Clean musk",
-    smiles: "CC1Cc2c(cc3c(c2C(C)(C)C1)OCCO3)C",
-    year: "2023", limit: 100, mol_wt: 258.4, logp: 5.9, mol_block: null,
-  },
-  {
-    name: "Coumarin",
-    risk: "Hepatotoxicity · Allergen",
-    status: "Restricted",
-    replacement: "Tonka absolute · 6-methylcoumarin",
-    desc: "CAS: 91-64-5 · Sweet hay-tonka note",
-    smiles: "O=c1ccc2ccccc2o1",
-    year: "2016", limit: 1.6, mol_wt: 146.14, logp: 1.39, mol_block: null,
-  },
-  {
-    name: "Cinnamal",
-    risk: "Strong skin sensitizer",
-    status: "Restricted",
-    replacement: "Cinnamyl alcohol (mild)",
-    desc: "CAS: 104-55-2 · Cinnamon aldehyde",
-    smiles: "O=C/C=C/c1ccccc1",
-    year: "2019", limit: 0.5, mol_wt: 132.16, logp: 1.9, mol_block: null,
-  },
-  {
-    name: "Eugenol",
-    risk: "Skin sensitizer",
-    status: "Restricted",
-    replacement: "Isoeugenol methyl ether",
-    desc: "CAS: 97-53-0 · Clove phenol",
-    smiles: "C=CCc1ccc(O)c(OC)c1",
-    year: "2018", limit: 0.5, mol_wt: 164.2, logp: 2.27, mol_block: null,
-  },
-  {
-    name: "Musk Ketone",
-    risk: "Endocrine disruption",
-    status: "Banned",
-    replacement: "Helvetolide · Romandolide",
-    desc: "CAS: 81-14-1 · Nitromusk (legacy)",
-    smiles: "Cc1c(C(=O)C)c([N+](=O)[O-])c(C(C)(C)C)c([N+](=O)[O-])c1C",
-    year: "2015", limit: 0, mol_wt: 294.3, logp: 3.14, mol_block: null,
-  },
-];
-
 /* =====================================================
    STATE
    ===================================================== */
 const state = {
   ingredients: [],
-  currentFilter: "all",
-  currentSort: "alpha",
-  currentOdorConfidenceFilter: "all",
-  currentOdorCategoryFilter: "all",
   currentMolecule: null,
-  isTransitioning: false,
 };
-
 let viewer = null;
+let networkLoaded = false;
+let networkInstance = null;
 
-/* =====================================================
-   PERFUME SPRAY TEXT REVEAL
-   ===================================================== */
-function splitAndSprayText(element) {
-  if (element.dataset.sprayed === "true") return;
-  const html = element.innerHTML;
-  // Preserve <em> / <br> tags
-  const parts = html.split(/(<[^>]+>)/);
-  let rebuilt = "";
-  parts.forEach((part) => {
-    if (part.startsWith("<")) {
-      // open/close tag — handle <em> opening by starting a wrapper
-      if (part.match(/^<em/i)) {
-        rebuilt += `<em>`;
-      } else if (part.match(/^<\/em>/i)) {
-        rebuilt += `</em>`;
-      } else if (part.match(/^<br/i)) {
-        rebuilt += part;
-      } else {
-        rebuilt += part;
-      }
-    } else {
-      // Split text into characters, wrap each
-      const chars = part.split("");
-      chars.forEach((c) => {
-        if (c === " ") {
-          rebuilt += `<span class="spray-char spray--space">&nbsp;</span>`;
-        } else {
-          rebuilt += `<span class="spray-char">${c}</span>`;
-        }
-      });
-    }
-  });
-  element.innerHTML = rebuilt;
-  element.classList.add("spray-text");
-  element.dataset.sprayed = "true";
-
-  // Create mist layer
-  const mist = document.createElement("span");
-  mist.className = "spray-mist";
-  element.appendChild(mist);
-}
-
-function emitSprayParticles(element, count = 20) {
-  const rect = element.getBoundingClientRect();
-  for (let i = 0; i < count; i++) {
-    const p = document.createElement("span");
-    p.className = "spray-particle";
-    p.style.position = "fixed";
-    p.style.left = `${rect.left - 20}px`;
-    p.style.top = `${rect.top + rect.height / 2 + (Math.random() - 0.5) * rect.height * 0.6}px`;
-    p.style.zIndex = 4;
-    p.style.pointerEvents = "none";
-    const angle = (Math.random() - 0.5) * 0.4;
-    const distance = 120 + Math.random() * 180;
-    const delay = Math.random() * 0.15;
-    const duration = 0.9 + Math.random() * 0.6;
-    const size = 3 + Math.random() * 6;
-    p.style.width = `${size}px`;
-    p.style.height = `${size}px`;
-    p.animate([
-      { opacity: 0, transform: `translate(0, 0) scale(1)`, filter: "blur(0)" },
-      { opacity: 0.8, transform: `translate(${distance * 0.35}px, ${Math.sin(angle) * distance * 0.35}px) scale(2)`, filter: "blur(2px)", offset: 0.3 },
-      { opacity: 0, transform: `translate(${distance}px, ${Math.sin(angle) * distance}px) scale(8)`, filter: "blur(10px)" },
-    ], {
-      duration: duration * 1000,
-      delay: delay * 1000,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-      fill: "forwards",
-    });
-    document.body.appendChild(p);
-    setTimeout(() => p.remove(), (duration + delay + 0.2) * 1000);
-  }
-}
-
-function triggerSpray(element) {
-  if (!element) return;
-  splitAndSprayText(element);
-  const chars = element.querySelectorAll(".spray-char");
-  // reset
-  chars.forEach((c) => {
-    c.style.transitionDelay = "";
-    c.classList.remove("sprayed");
-  });
-  element.classList.remove("sprayed", "spraying");
-
-  // force reflow
-  void element.offsetWidth;
-
-  element.classList.add("spraying");
-  emitSprayParticles(element, 24);
-
-  // Stagger char reveal
-  chars.forEach((c, i) => {
-    c.style.transitionDelay = `${0.15 + i * 0.025}s`;
-  });
-  requestAnimationFrame(() => {
-    element.classList.add("sprayed");
-  });
-  setTimeout(() => {
-    element.classList.remove("spraying");
-  }, 1400);
-}
-
-function sprayAllInView(viewName) {
-  const view = document.getElementById(`view-${viewName}`);
-  if (!view) return;
-  const targets = view.querySelectorAll("[data-spray]");
-  targets.forEach((t, i) => {
-    setTimeout(() => triggerSpray(t), i * 200);
-  });
-}
-
-/* =====================================================
-   CURSOR AURA
-   ===================================================== */
-function wireCursorAura() {
-  const aura = document.getElementById("cursor-aura");
-  if (!aura) return;
-  let tx = 0, ty = 0, cx = 0, cy = 0;
-  document.addEventListener("mousemove", (e) => {
-    tx = e.clientX; ty = e.clientY;
-  });
-  function loop() {
-    cx += (tx - cx) * 0.12;
-    cy += (ty - cy) * 0.12;
-    aura.style.transform = `translate(${cx}px, ${cy}px) translate(-50%, -50%)`;
-    requestAnimationFrame(loop);
-  }
-  loop();
-}
-
-/* =====================================================
-   CARD MOUSE-LIGHT
-   ===================================================== */
-function wireCardLight(card) {
-  card.addEventListener("mousemove", (e) => {
-    const rect = card.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    card.style.setProperty("--mx", `${x}%`);
-    card.style.setProperty("--my", `${y}%`);
-  });
-}
-
-/* =====================================================
-   3D MOLECULE VIEWER
-   ===================================================== */
-function render3DMolecule(molBlock, smiles) {
-  const container = document.getElementById("mol-container");
-  const fallback = document.getElementById("mol-fallback");
-  const modeBadge = document.getElementById("viewer-mode-badge");
-
-  if (!container || !fallback || !modeBadge) return;
-
-  if (molBlock && window.$3Dmol) {
-    fallback.style.display = "none";
-    modeBadge.style.display = "none";
-    container.style.display = "block";
-    container.innerHTML = "";
-
-    const theme = document.documentElement.getAttribute("data-theme") || "light";
-    const bgColor = theme === "light" ? "#F3E8D7" : "#0D0806";
-    viewer = $3Dmol.createViewer(container, { backgroundColor: bgColor });
-    viewer.addModel(molBlock, "sdf");
-    viewer.setStyle({}, {
-      stick: { radius: 0.14, colorscheme: "Jmol" },
-      sphere: { scale: 0.28 },
-    });
-    viewer.zoomTo();
-    viewer.render();
-    viewer.spin("y", 0.6);
-    return;
-  }
-
-  container.style.display = "none";
-  modeBadge.style.display = "block";
-  fallback.style.display = "grid";
-  fallback.innerHTML = `<div><div class="mol-placeholder">3D coordinates unavailable</div><div style="margin-top:0.5rem;font-size:0.75rem;font-family:var(--font-body);">${safeText(smiles, "No SMILES")}</div></div>`;
-}
+/* Neutral, colour-blind-safe-ish family palette. */
+const FAMILY_COLORS = {
+  musk:      "#8c8c99", vanilla: "#c9a227", citrus:   "#c98f1e",
+  floral:    "#b3739e", woody:   "#7a8b5a", spicy:    "#b4623c",
+  fresh:     "#5b9aa0", green:   "#6f9e4c", powdery:  "#9d86b8",
+  fruity:    "#c07456", aldehydic: "#a39152", other:  "#9aa0a8",
+};
 
 /* =====================================================
    HELPERS
@@ -2597,754 +514,404 @@ function safeText(value, fallback = "N/A") {
 }
 
 function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  return String(value).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
 }
 
 function statusBucket(status) {
-  const normalized = safeText(status, "").toLowerCase();
-  if (normalized.includes("banned")) return "banned";
-  if (normalized.includes("restricted")) return "restricted";
+  const s = safeText(status, "").toLowerCase();
+  if (s.includes("banned")) return "banned";
+  if (s.includes("restricted")) return "restricted";
   return "safe";
 }
 
-function gradeFrom(status, limit) {
+function statusBadge(status) {
   const bucket = statusBucket(status);
-  if (bucket === "banned") return "F";
-  if (bucket === "restricted") {
-    const val = Number(limit);
-    if (Number.isFinite(val) && val <= 1) return "B";
-    if (Number.isFinite(val) && val <= 10) return "C";
-    return "D";
-  }
-  return "A";
+  if (bucket === "banned") return '<span class="badge badge-banned">Banned</span>';
+  if (bucket === "restricted") return '<span class="badge badge-restricted">Restricted</span>';
+  return '<span class="badge badge-watch">Unregulated</span>';
 }
 
-function gradeMeaning(grade) {
-  if (grade === "F") return "Banned — must not be used";
-  if (grade === "D" || grade === "C" || grade === "B") return "Restricted — controlled use";
-  return "Watchlist — currently unregulated";
+function limitLabel(limit, status) {
+  const v = Number(limit);
+  if (statusBucket(status) === "safe") return "—";
+  if (!Number.isFinite(v)) return "—";
+  return v === 0 ? "0% (banned)" : v + "%";
 }
 
-function normalizeOdorConfidence(value) {
-  const normalized = safeText(value, "").toLowerCase();
-  if (normalized.includes("high")) return "high";
-  if (normalized.includes("medium")) return "medium";
-  if (normalized.includes("low")) return "low";
-  return "unknown";
+function casFrom(desc) {
+  const m = safeText(desc, "").match(/CAS:\s*([^\s,;]+)/i);
+  return m ? m[1] : "—";
 }
 
-function parseOdorCategories(odorProfile) {
-  const profile = safeText(odorProfile, "").toLowerCase();
-  if (!profile || profile === "unknown") return [];
-  return profile
-    .split(/[;,/|]+/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
+function num(value, digits = 2) {
+  const v = Number(value);
+  return Number.isFinite(v) ? v.toFixed(digits) : "—";
 }
 
-function odorTagsFromProfile(odorProfile) {
-  const profile = safeText(odorProfile, "").toLowerCase();
-  if (!profile || profile === "unknown") return ["unknown"];
-  const tags = profile
-    .split(/[;,/|]+/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-  const dedup = Array.from(new Set(tags));
-  return dedup.length ? dedup : ["unknown"];
-}
-
-function titleCaseTag(tag) {
-  return tag
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-function renderOdorTagMarkup(odorProfile, odorConfidence) {
-  const tags = odorTagsFromProfile(odorProfile);
-  const confidenceBucket = normalizeOdorConfidence(odorConfidence);
-  const confidenceLabel = safeText(odorConfidence, "low").toLowerCase();
-  const chips = tags
-    .map((tag) => `<span class="odor-chip">${escapeHtml(titleCaseTag(tag))}</span>`)
-    .join("");
-  const confidenceChip = `<span class="odor-chip odor-chip--confidence odor-chip--${confidenceBucket}">${escapeHtml(confidenceLabel)} confidence</span>`;
-  return `<span class="odor-prefix">Could smell like</span><span class="odor-tags">${chips}${confidenceChip}</span>`;
-}
-
-function mapDirectoryItem(item) {
-  const mwValue = Number(item.mol_wt);
-  const logpValue = Number(item.logp);
-  return {
-    name: safeText(item.name),
-    risk: safeText(item.risk, "Regulatory Risk"),
-    status: safeText(item.status),
-    replacement: safeText(item.replacement, "No substitute data"),
-    desc: safeText(item.desc, "No dossier description available."),
-    smiles: safeText(item.smiles, "N/A"),
-    year: safeText(item.year, "N/A"),
-    limit: Number(item.limit),
-    mol_wt: item.mol_wt,
-    logp: item.logp,
-    odor_profile: safeText(item.odor_profile, "unknown"),
-    odor_basis: safeText(item.odor_basis, "insufficient structural evidence"),
-    odor_confidence: safeText(item.odor_confidence, "low"),
-    odorConfidenceBucket: normalizeOdorConfidence(item.odor_confidence),
-    odorCategories: parseOdorCategories(item.odor_profile),
-    molWtValue: Number.isFinite(mwValue) ? mwValue : null,
-    logpValue: Number.isFinite(logpValue) ? logpValue : null,
-    mol_block: item.mol_block || null,
-    grade: gradeFrom(item.status, item.limit),
-  };
-}
-
-function refreshOdorCategoryFilterOptions() {
-  const select = document.getElementById("odor-category-filter-select");
-  if (!select) return;
-
-  const currentValue = state.currentOdorCategoryFilter;
-  const categories = Array.from(new Set(
-    state.ingredients.flatMap((item) => Array.isArray(item.odorCategories) ? item.odorCategories : [])
-  )).sort((a, b) => a.localeCompare(b));
-
-  const options = [
-    '<option value="all">All</option>',
-    ...categories.map((category) => {
-      const label = category.charAt(0).toUpperCase() + category.slice(1);
-      return `<option value="${category.replace(/"/g, "&quot;")}">${label}</option>`;
-    }),
-  ];
-
-  select.innerHTML = options.join("");
-  const nextValue = categories.includes(currentValue) ? currentValue : "all";
-  select.value = nextValue;
-  state.currentOdorCategoryFilter = nextValue;
-}
-
-function getFilteredAndSorted() {
-  let rows = [...state.ingredients];
-  if (state.currentFilter !== "all") {
-    rows = rows.filter((item) => statusBucket(item.status) === state.currentFilter);
-  }
-
-  if (state.currentOdorConfidenceFilter !== "all") {
-    rows = rows.filter((item) => item.odorConfidenceBucket === state.currentOdorConfidenceFilter);
-  }
-
-  if (state.currentOdorCategoryFilter !== "all") {
-    rows = rows.filter((item) => item.odorCategories.includes(state.currentOdorCategoryFilter));
-  }
-
-  if (state.currentSort === "year-desc") {
-    rows.sort((a, b) => Number.parseInt(b.year, 10) - Number.parseInt(a.year, 10));
-  } else if (state.currentSort === "year-asc") {
-    rows.sort((a, b) => Number.parseInt(a.year, 10) - Number.parseInt(b.year, 10));
-  } else {
-    rows.sort((a, b) => a.name.localeCompare(b.name));
-  }
-  return rows;
-}
-
-function renderMetrics() {
-  const total = state.ingredients.length;
-  const banned = state.ingredients.filter((i) => statusBucket(i.status) === "banned").length;
-  const restricted = state.ingredients.filter((i) => statusBucket(i.status) === "restricted").length;
-  const watchlist = state.ingredients.filter((i) => statusBucket(i.status) === "safe").length;
-
-  animateCounter(document.getElementById("metric-total"), total);
-  document.getElementById("metric-banned").innerHTML = `${banned} <small>F</small>`;
-  document.getElementById("metric-restricted").innerHTML = `${restricted} <small>B-D</small>`;
-  document.getElementById("metric-watchlist").innerHTML = `${watchlist} <small>*</small>`;
-}
-
-function animateCounter(el, target) {
-  if (!el) return;
-  const duration = 1400;
-  const start = performance.now();
-  const from = 0;
-  function tick(now) {
-    const t = Math.min((now - start) / duration, 1);
-    const eased = 1 - Math.pow(1 - t, 3);
-    el.textContent = Math.round(from + (target - from) * eased);
-    if (t < 1) requestAnimationFrame(tick);
-    else el.textContent = target;
-  }
-  requestAnimationFrame(tick);
-}
-
-/* =====================================================
-   CARD RENDERING
-   ===================================================== */
-function renderCards() {
-  const container = document.getElementById("ingredients");
-  const rows = getFilteredAndSorted();
-
-  const makeCard = (ing, i) => {
-    const bucket = statusBucket(ing.status);
-    const yearLabel = safeText(ing.year, "N/A");
-    return `
-      <article class="card" data-name="${ing.name.replace(/"/g, "&quot;")}" style="--stagger: ${i}">
-        <div class="card-index">No ${String(i + 1).padStart(3, "0")}</div>
-        <div class="grade grade--${ing.grade}">${ing.grade}</div>
-        <h3 class="card-title">${ing.name}</h3>
-        <div class="card-risk">- ${ing.risk}</div>
-        <div class="card-odor">${renderOdorTagMarkup(ing.odor_profile, ing.odor_confidence)}</div>
-        <div class="card-foot">
-          <span class="card-status card-status--${bucket === "safe" ? "watchlist" : bucket}">${ing.status}</span>
-          <span class="card-year">${yearLabel}</span>
-        </div>
-        <div class="card-peek">peek</div>
-      </article>
-    `;
-  };
-
-  if (rows.length === 0) {
-    container.classList.remove("restricted-mode");
-    container.innerHTML = `<div class="empty-state">No ingredients match this filter combination.</div>`;
-  } else if (state.currentFilter === "restricted") {
-    container.classList.add("restricted-mode");
-    const groups = { B: [], C: [], D: [] };
-    rows.forEach((row) => {
-      if (groups[row.grade]) groups[row.grade].push(row);
-    });
-
-    const sections = ["B", "C", "D"]
-      .filter((g) => groups[g].length > 0)
-      .map((g) => `
-        <section>
-          <div class="restricted-group-title">Grade ${g} Restricted</div>
-          <div class="restricted-group-grid">
-            ${groups[g].map((ing, i) => makeCard(ing, i)).join("")}
-          </div>
-        </section>
-      `)
-      .join("");
-    container.innerHTML = `<div class="restricted-groups">${sections}</div>`;
-  } else {
-    container.classList.remove("restricted-mode");
-    container.innerHTML = rows.map((ing, i) => makeCard(ing, i)).join("");
-  }
-
-  container.querySelectorAll(".card").forEach((card) => {
-    wireCardLight(card);
-    card.addEventListener("click", () => {
-      const name = card.dataset.name;
-      if (name) {
-        openSidebar(name);
-      }
-    });
-  });
-}
-
-/* =====================================================
-   SIDEBAR — quick-peek
-   ===================================================== */
-function openSidebar(name) {
-  const data = state.ingredients.find((i) => i.name === name);
-  if (!data) return;
-
-  const grade = data.grade;
-  const limit = Number(data.limit);
-  const limitLabel = Number.isFinite(limit) ? `${limit}%` : "Unregulated";
-
-  document.getElementById("sidebar-name").textContent = data.name;
-  const gradeEl = document.getElementById("sidebar-grade");
-  gradeEl.textContent = grade;
-  gradeEl.className = `sidebar-grade sidebar-grade--${grade}`;
-  document.getElementById("sidebar-grade-meaning").textContent = gradeMeaning(grade);
-  document.getElementById("sidebar-risk").textContent = data.risk;
-  document.getElementById("sidebar-odor").innerHTML = renderOdorTagMarkup(data.odor_profile, data.odor_confidence);
-  document.getElementById("sidebar-odor-basis").textContent = `Basis: ${safeText(data.odor_basis, "insufficient structural evidence")} · Confidence: ${safeText(data.odor_confidence, "low")}`;
-  document.getElementById("sidebar-limit").textContent = limitLabel;
-  document.getElementById("sidebar-status").textContent = data.status;
-  document.getElementById("sidebar-year").textContent = data.year;
-  document.getElementById("sidebar-mw").textContent = Number.isFinite(Number(data.mol_wt)) ? Number(data.mol_wt).toFixed(2) : "N/A";
-  document.getElementById("sidebar-logp").textContent = Number.isFinite(Number(data.logp)) ? Number(data.logp).toFixed(2) : "N/A";
-  document.getElementById("sidebar-smiles").textContent = data.smiles;
-  document.getElementById("sidebar-substitute").textContent = data.replacement;
-
-  // Animate limit fill
-  const fill = document.getElementById("sidebar-limit-fill");
-  fill.style.width = "0%";
-  setTimeout(() => {
-    fill.style.width = `${Number.isFinite(limit) ? Math.min(limit, 100) : 100}%`;
-  }, 300);
-
-  document.getElementById("sidebar").classList.add("open");
-  document.getElementById("sidebar").setAttribute("aria-hidden", "false");
-  document.getElementById("sidebar-scrim").classList.add("visible");
-
-  // Stash the current name so CTA can navigate
-  state.sidebarCurrent = data.name;
-}
-
-function closeSidebar() {
-  document.getElementById("sidebar").classList.remove("open");
-  document.getElementById("sidebar").setAttribute("aria-hidden", "true");
-  document.getElementById("sidebar-scrim").classList.remove("visible");
-}
-
-function wireSidebar() {
-  document.getElementById("sidebar-close").addEventListener("click", closeSidebar);
-  document.getElementById("sidebar-scrim").addEventListener("click", closeSidebar);
-  document.getElementById("sidebar-cta").addEventListener("click", () => {
-    if (state.sidebarCurrent) {
-      closeSidebar();
-      setTimeout(() => loadMolecule(state.sidebarCurrent), 400);
-    }
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeSidebar();
-  });
-}
-
-/* =====================================================
-   VIEW TRANSITIONS (silk fade + blur)
-   ===================================================== */
-function setActiveView(view) {
-  if (state.isTransitioning) return;
-  const currentActive = document.querySelector(".view.active");
-  const next = document.getElementById(`view-${view}`);
-  if (!next || currentActive === next) return;
-
-  state.isTransitioning = true;
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.classList.toggle("active", tab.dataset.view === view);
-  });
-
-  if (currentActive) {
-    currentActive.classList.remove("active");
-    currentActive.classList.add("leaving");
-    setTimeout(() => {
-      currentActive.classList.remove("leaving");
-    }, 450);
-  }
-
-  setTimeout(() => {
-    next.classList.add("active");
-    // Reset spray state on hero titles so they re-trigger
-    next.querySelectorAll("[data-spray]").forEach((el) => {
-      el.dataset.sprayed = "false";
-      el.innerHTML = el.dataset.sprayOriginal || el.innerHTML;
-    });
-    setTimeout(() => {
-      sprayAllInView(view);
-    }, 200);
-    state.isTransitioning = false;
-  }, 300);
-}
-
-/* =====================================================
-   INTEL VIEW
-   ===================================================== */
-function hydrateIntel(data) {
-  state.currentMolecule = data;
-  const limit = Number(data.limit);
-  const limitLabel = Number.isFinite(limit) ? `${limit}%` : "Unregulated";
-  const grade = gradeFrom(data.status, data.limit);
-  const casRef = (safeText(data.desc, "").match(/CAS:\s*([^\s,;]+)/i) || [])[1] || "Unknown";
-
-  const hero = document.getElementById("intel-hero-title");
-  hero.dataset.sprayed = "false";
-  hero.innerHTML = `Molécule<br><em>${casRef}</em>`;
-  hero.dataset.sprayOriginal = hero.innerHTML;
-
-  document.getElementById("intel-script").textContent = `- ${data.name.split(" ")[0]}`;
-  document.getElementById("intel-name").textContent = data.name;
-  document.getElementById("intel-cas").textContent = data.desc;
-  document.getElementById("intel-grade").textContent = grade;
-  document.getElementById("intel-grade-meaning").textContent = gradeMeaning(grade);
-  document.getElementById("intel-risk").textContent = data.risk;
-  document.getElementById("intel-odor").innerHTML = renderOdorTagMarkup(data.odor_profile, data.odor_confidence);
-  document.getElementById("intel-limit").textContent = limitLabel;
-  document.getElementById("intel-year").textContent = safeText(data.year, "N/A");
-  document.getElementById("intel-substitute").textContent = safeText(data.replacement, "No substitute data");
-  document.getElementById("intel-substitute-match").textContent = "Generated from molecular similarity search";
-  document.getElementById("intel-mw").textContent = Number.isFinite(Number(data.mol_wt)) ? Number(data.mol_wt).toFixed(2) : "N/A";
-  document.getElementById("intel-logp").textContent = Number.isFinite(Number(data.logp)) ? Number(data.logp).toFixed(2) : "N/A";
-  document.getElementById("intel-smiles").textContent = safeText(data.smiles, "N/A");
-  document.getElementById("intel-molecule-tag").textContent = safeText(data.name, "3D Molecule");
-  render3DMolecule(data.mol_block, data.smiles);
-
-  const fill = Number.isFinite(limit) ? Math.min(limit, 100) : 100;
-  const fillEl = document.getElementById("intel-limit-fill");
-  fillEl.style.width = "0%";
-  setTimeout(() => { fillEl.style.width = `${fill}%`; }, 300);
-}
-
-async function loadMolecule(name) {
-  try {
-    let item = null;
-    try {
-      const response = await fetch(`/api/molecule/${encodeURIComponent(name)}`);
-      if (response.ok) {
-        const raw = await response.json();
-        item = mapDirectoryItem(raw);
-      }
-    } catch (_) { /* fall through to demo data */ }
-
-    if (!item) {
-      const demoMatch = state.ingredients.find((i) => i.name === name);
-      if (demoMatch) item = demoMatch;
-    }
-    if (!item) return;
-
-    hydrateIntel(item);
-    setActiveView("intel");
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-/* =====================================================
-   WIRING
-   ===================================================== */
-function wireTabs() {
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      setActiveView(tab.dataset.view);
-    });
-  });
-}
-
-function wireFilters() {
-  document.querySelectorAll(".filter").forEach((f) => {
-    f.addEventListener("click", () => {
-      state.currentFilter = f.dataset.filter || "all";
-      document.querySelectorAll(".filter").forEach((x) => x.classList.remove("active"));
-      f.classList.add("active");
-      renderCards();
-    });
-  });
-
-  document.getElementById("sort-select").addEventListener("change", (event) => {
-    state.currentSort = event.target.value;
-    renderCards();
-  });
-
-  document.getElementById("odor-confidence-filter-select").addEventListener("change", (event) => {
-    state.currentOdorConfidenceFilter = event.target.value;
-    renderCards();
-  });
-
-  document.getElementById("odor-category-filter-select").addEventListener("change", (event) => {
-    state.currentOdorCategoryFilter = event.target.value;
-    renderCards();
-  });
-}
-
-function wireTheme() {
-  const select = document.getElementById("theme-select");
-  const saved = (typeof localStorage !== "undefined") ? localStorage.getItem("fragrance-theme") : null;
-  const theme = saved === "dark" ? "dark" : "light";
-  document.documentElement.setAttribute("data-theme", theme);
-  select.value = theme;
-
-  select.addEventListener("change", () => {
-    const next = select.value === "dark" ? "dark" : "light";
-    document.documentElement.setAttribute("data-theme", next);
-    try { localStorage.setItem("fragrance-theme", next); } catch (_) {}
-    if (state.currentMolecule) {
-      render3DMolecule(state.currentMolecule.mol_block, state.currentMolecule.smiles);
-    }
-  });
-}
-
-async function updateSearchSuggestions(query) {
-  const datalist = document.getElementById("molecule-suggestions");
-  if (!query.trim()) { datalist.innerHTML = ""; return; }
-
-  try {
-    const response = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}`);
-    if (response.ok) {
-      const matches = await response.json();
-      datalist.innerHTML = matches
-        .slice(0, 10)
-        .map((item) => `<option value="${safeText(item.name, "").replace(/"/g, "&quot;")}"></option>`)
-        .join("");
-      return;
-    }
-  } catch (_) { /* fall through to local filter */ }
-
-  // Local fallback
-  const q = query.toLowerCase();
-  const matches = state.ingredients.filter((i) => i.name.toLowerCase().includes(q)).slice(0, 10);
-  datalist.innerHTML = matches
-    .map((item) => `<option value="${item.name.replace(/"/g, "&quot;")}"></option>`)
-    .join("");
-}
-
-function wireSearch() {
-  const searchInput = document.getElementById("search-input");
-  let debounce;
-
-  searchInput.addEventListener("input", () => {
-    clearTimeout(debounce);
-    debounce = setTimeout(() => updateSearchSuggestions(searchInput.value), 180);
-  });
-
-  searchInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      const value = searchInput.value.trim();
-      if (value) {
-        // Check if exact match in local data → open sidebar; otherwise full dossier
-        const exact = state.ingredients.find((i) => i.name.toLowerCase() === value.toLowerCase());
-        if (exact) {
-          openSidebar(exact.name);
-        } else {
-          loadMolecule(value);
-        }
-      }
-    }
-  });
+function parseOdorCategories(profile) {
+  // The backend joins multi-word family phrases with commas ("fruity, sweet" +
+  // "sweet, anisic"), so splitting can repeat a term. Dedupe.
+  const parts = safeText(profile, "")
+    .split(/[,;]/)
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s && s !== "unknown");
+  return Array.from(new Set(parts));
 }
 
 function parseCsv(content) {
   const rows = content.trim().split(/\r?\n/);
   if (rows.length < 2) return [];
-
   const headers = rows[0].split(",").map((h) => h.trim().toLowerCase());
-  const ingredientIdx = headers.indexOf("ingredient");
-  const percentageIdx = headers.indexOf("percentage");
-  if (ingredientIdx === -1 || percentageIdx === -1) return [];
-
+  const iIdx = headers.indexOf("ingredient");
+  const pIdx = headers.indexOf("percentage");
+  if (iIdx === -1 || pIdx === -1) return [];
   return rows.slice(1).map((row) => {
     const cols = row.split(",");
     return {
-      ingredient: safeText(cols[ingredientIdx], "").trim(),
-      percentage: Number.parseFloat(cols[percentageIdx]),
+      ingredient: safeText(cols[iIdx], "").trim(),
+      percentage: Number.parseFloat(cols[pIdx]),
     };
   }).filter((r) => r.ingredient && Number.isFinite(r.percentage));
 }
 
-function renderAuditResult(payload) {
-  const container = document.getElementById("audit-results");
-  if (!payload || !Array.isArray(payload.results)) {
-    container.innerHTML = "<p>Audit failed. Please check your file format.</p>";
+function mapItem(item) {
+  return {
+    name: safeText(item.name),
+    status: safeText(item.status),
+    risk: safeText(item.risk, "Not specified"),
+    replacement: safeText(item.replacement, "—"),
+    desc: safeText(item.desc, ""),
+    smiles: safeText(item.smiles, "—"),
+    year: safeText(item.year, "—"),
+    limit: Number(item.limit),
+    mol_wt: item.mol_wt,
+    logp: item.logp,
+    odor_profile: safeText(item.odor_profile, "unknown"),
+    odor_basis: safeText(item.odor_basis, "insufficient structural evidence"),
+    odor_confidence: safeText(item.odor_confidence, "low").toLowerCase(),
+    odorCategories: parseOdorCategories(item.odor_profile),
+    mol_block: item.mol_block || null,
+    mol_block_url: item.mol_block_url || null,
+  };
+}
+
+/* =====================================================
+   VIEWS
+   ===================================================== */
+function setActiveView(view) {
+  document.querySelectorAll(".tab").forEach((t) => {
+    t.classList.toggle("active", t.dataset.view === view);
+  });
+  document.querySelectorAll(".view").forEach((v) => {
+    v.classList.toggle("active", v.id === "view-" + view);
+  });
+  if (view === "network") setTimeout(loadNetwork, 50);
+  window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+/* =====================================================
+   DIRECTORY
+   ===================================================== */
+function renderStats() {
+  const all = state.ingredients;
+  const count = (b) => all.filter((i) => statusBucket(i.status) === b).length;
+  document.getElementById("stats").innerHTML = [
+    ["Ingredients", all.length],
+    ["Banned", count("banned")],
+    ["Restricted", count("restricted")],
+    ["Unregulated candidates", count("safe")],
+  ].map(([label, value]) => `
+    <div>
+      <div class="stat-label">${label}</div>
+      <div class="stat-value">${value}</div>
+    </div>
+  `).join("");
+}
+
+function refreshOdorFilter() {
+  const select = document.getElementById("filter-odor");
+  const seen = new Set();
+  state.ingredients.forEach((i) => i.odorCategories.forEach((c) => seen.add(c)));
+  const current = select.value;
+  select.innerHTML = '<option value="all">All</option>' +
+    Array.from(seen).sort().map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  if (Array.from(select.options).some((o) => o.value === current)) select.value = current;
+}
+
+function currentRows() {
+  const status = document.getElementById("filter-status").value;
+  const odor = document.getElementById("filter-odor").value;
+  const conf = document.getElementById("filter-confidence").value;
+  const sort = document.getElementById("sort-by").value;
+  const text = document.getElementById("filter-text").value.trim().toLowerCase();
+
+  let rows = state.ingredients.filter((i) => {
+    if (status !== "all" && statusBucket(i.status) !== status) return false;
+    if (odor !== "all" && !i.odorCategories.includes(odor)) return false;
+    if (conf !== "all" && i.odor_confidence !== conf) return false;
+    if (text) {
+      const hay = (i.name + " " + casFrom(i.desc)).toLowerCase();
+      if (!hay.includes(text)) return false;
+    }
+    return true;
+  });
+
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  if (sort === "name") rows.sort(byName);
+  if (sort === "limit-asc") rows.sort((a, b) => (a.limit || 0) - (b.limit || 0) || byName(a, b));
+  if (sort === "limit-desc") rows.sort((a, b) => (b.limit || 0) - (a.limit || 0) || byName(a, b));
+  if (sort === "mw") rows.sort((a, b) => (Number(b.mol_wt) || 0) - (Number(a.mol_wt) || 0) || byName(a, b));
+
+  return rows;
+}
+
+function renderDirectory() {
+  const rows = currentRows();
+  const tbody = document.getElementById("directory-rows");
+
+  document.getElementById("result-count").textContent =
+    `${rows.length} of ${state.ingredients.length} ingredients`;
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No ingredients match these filters.</td></tr>';
     return;
   }
 
-  const summary = payload.compliant
-    ? `<p class="audit-ok">Compliant formula. No blocking IFRA violations found.</p>`
-    : `<p class="audit-fail">Non-compliant formula. ${payload.failed_items.length} ingredient(s) failed.</p>`;
+  tbody.innerHTML = rows.map((i) => `
+    <tr class="clickable" data-name="${escapeHtml(i.name)}">
+      <td class="name-cell">${escapeHtml(i.name)}</td>
+      <td class="mono num">${escapeHtml(casFrom(i.desc))}</td>
+      <td>${statusBadge(i.status)}</td>
+      <td class="num">${escapeHtml(limitLabel(i.limit, i.status))}</td>
+      <td class="reason-cell">${escapeHtml(i.risk)}</td>
+      <td class="reason-cell">${escapeHtml(i.odorCategories.join(", ") || "unknown")}</td>
+      <td class="num">${num(i.mol_wt, 1)}</td>
+      <td class="num">${num(i.logp)}</td>
+    </tr>
+  `).join("");
 
-  const rows = payload.results.map((row) => {
-    const statusClass = row.status === "PASS" ? "audit-ok" : "audit-fail";
-    return `
-      <tr>
-        <td>${safeText(row.name)}</td>
-        <td>${safeText(row.formula_pct)}</td>
-        <td>${safeText(row.limit)}</td>
-        <td class="${statusClass}">${safeText(row.status)}</td>
-        <td>${safeText(row.risk)}</td>
-      </tr>
-    `;
-  }).join("");
-
-  container.innerHTML = `
-    ${summary}
-    <table>
-      <thead>
-        <tr>
-          <th>Ingredient</th>
-          <th>In Formula %</th>
-          <th>Limit</th>
-          <th>Status</th>
-          <th>Risk</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
-
-function wireAuditUpload() {
-  const button = document.getElementById("upload-btn");
-  const input = document.getElementById("audit-file");
-
-  button.addEventListener("click", () => input.click());
-  input.addEventListener("change", async () => {
-    const file = input.files && input.files[0];
-    if (!file) return;
-
-    const content = await file.text();
-    const items = parseCsv(content);
-    if (!items.length) {
-      renderAuditResult(null);
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/audit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items, filename: file.name }),
-      });
-      if (!response.ok) throw new Error("Audit request failed");
-      const payload = await response.json();
-      renderAuditResult(payload);
-    } catch (error) {
-      // Fallback: client-side audit against local data
-      const results = items.map((row) => {
-        const match = state.ingredients.find((i) => i.name.toLowerCase() === row.ingredient.toLowerCase());
-        if (!match) {
-          return { name: row.ingredient, formula_pct: row.percentage, limit: "—", status: "UNKNOWN", risk: "Not in registry" };
-        }
-        const limit = Number(match.limit);
-        const bucket = statusBucket(match.status);
-        let status = "PASS";
-        if (bucket === "banned") status = "FAIL — BANNED";
-        else if (bucket === "restricted" && Number.isFinite(limit) && row.percentage > limit) status = "FAIL — OVER LIMIT";
-        return { name: match.name, formula_pct: row.percentage + "%", limit: Number.isFinite(limit) ? limit + "%" : "—", status, risk: match.risk };
-      });
-      const failed_items = results.filter((r) => r.status.startsWith("FAIL"));
-      renderAuditResult({ results, failed_items, compliant: failed_items.length === 0 });
-    }
+  tbody.querySelectorAll("tr.clickable").forEach((tr) => {
+    tr.addEventListener("click", () => loadMolecule(tr.dataset.name));
   });
 }
 
-/* =====================================================
-   INIT
-   ===================================================== */
 async function loadDirectory() {
-  const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
   let data = null;
   try {
-    const response = await fetch("/api/directory");
-    if (response.ok) data = await response.json();
-  } catch (_) { /* demo fallback */ }
+    const res = await fetch("/api/directory");
+    if (res.ok) data = await res.json();
+  } catch (_) {}
 
-  if (!data || !Array.isArray(data) || data.length === 0) {
-    if (isLocalHost) {
-      data = DEMO_INGREDIENTS;
-    } else {
-      state.ingredients = [];
-      refreshOdorCategoryFilterOptions();
-      renderMetrics();
-      const container = document.getElementById("ingredients");
-      if (container) {
-        container.innerHTML = `
-          <article class="card" style="border-color: rgba(196,45,53,0.45);">
-            <h3 class="card-title">Directory unavailable</h3>
-            <div class="card-risk">API returned no ingredients. This is a server data-load issue, not a filter issue.</div>
-            <div class="pill">Check /api/health and server logs</div>
-          </article>
-        `;
-      }
-      return;
-    }
+  if (!Array.isArray(data) || !data.length) {
+    document.getElementById("directory-rows").innerHTML =
+      '<tr><td colspan="8" class="empty">Directory unavailable — the data source returned no ingredients.</td></tr>';
+    return;
   }
 
-  state.ingredients = data.map(mapDirectoryItem);
-  refreshOdorCategoryFilterOptions();
-  renderMetrics();
-  renderCards();
-
-  if (state.ingredients.length > 0) {
-    // Prime intel panel with first molecule payload
-    hydrateIntel(state.ingredients.find((i) => i.name.toLowerCase().includes("otne")) || state.ingredients[0]);
-  }
+  state.ingredients = data.map(mapItem);
+  renderStats();
+  refreshOdorFilter();
+  renderDirectory();
 }
-
-// Stash original HTML of spray titles for re-trigger
-document.querySelectorAll("[data-spray]").forEach((el) => {
-  el.dataset.sprayOriginal = el.innerHTML;
-});
-
-wireCursorAura();
-wireTabs();
-wireFilters();
-wireTheme();
-wireSearch();
-wireAuditUpload();
-wireSidebar();
-
-loadDirectory().then(() => {
-  // Trigger initial spray on the active view
-  setTimeout(() => sprayAllInView("directory"), 400);
-}).catch((error) => console.error(error));
 
 /* =====================================================
-   ODOR NETWORK
+   DETAIL
    ===================================================== */
-const FAMILY_PALETTE = {
-  musk:      { bg: "#C4955A", border: "#8B6A3A" },
-  vanilla:   { bg: "#E8D5A0", border: "#C0A050" },
-  citrus:    { bg: "#D4B840", border: "#9A8820" },
-  floral:    { bg: "#C87080", border: "#904050" },
-  woody:     { bg: "#6A8050", border: "#3A5530" },
-  spicy:     { bg: "#CC7040", border: "#8A4820" },
-  fresh:     { bg: "#60AABB", border: "#306878" },
-  green:     { bg: "#80BB50", border: "#508030" },
-  powdery:   { bg: "#B888B8", border: "#885588" },
-  fruity:    { bg: "#CC6850", border: "#8A4030" },
-  aldehydic: { bg: "#B0A060", border: "#787040" },
-  other:     { bg: "#888888", border: "#555555" },
-};
-
-const HIGHLIGHT_FAMILIES = new Set(["musk", "vanilla"]);
-
-let networkInstance = null;
-let networkAllNodes = [];
-let networkAllEdges = [];
-let networkDataSets = null;
-let networkLoaded = false;
-
-function buildNetworkLegend(familyCounts) {
-  const legend = document.getElementById("network-legend");
-  if (!legend) return;
-  let html = '<div class="network-legend-title">Odour Families</div>';
-  Object.keys(FAMILY_PALETTE).forEach((fam) => {
-    const count = familyCounts[fam] || 0;
-    if (count === 0) return;
-    const pal = FAMILY_PALETTE[fam];
-    const hi = HIGHLIGHT_FAMILIES.has(fam) ? " highlighted" : "";
-    html += `
-      <div class="network-legend-item${hi}">
-        <div class="network-legend-dot" style="background:${pal.bg};border-color:${pal.border};"></div>
-        <span>${fam.charAt(0).toUpperCase() + fam.slice(1)} (${count})</span>
-      </div>`;
-  });
-  legend.innerHTML = html;
+async function ensureMolBlock(data) {
+  if (!data || data.mol_block || !data.mol_block_url) return;
+  try {
+    const res = await fetch(data.mol_block_url);
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (!payload || !payload.mol_block) return;
+    data.mol_block = payload.mol_block;
+    if (state.currentMolecule && state.currentMolecule.name === data.name) {
+      render3DMolecule(data.mol_block, data.smiles);
+    }
+  } catch (_) {}
 }
 
-function applyNetworkFamilyFilter(family) {
-  if (!networkDataSets) return;
-  const { nodesDS, edgesDS } = networkDataSets;
+function render3DMolecule(molBlock, smiles, attempt = 0) {
+  const container = document.getElementById("mol-container");
+  const fallback = document.getElementById("mol-fallback");
+  if (!container || !fallback) return;
 
-  const visibleIds = new Set();
-  networkAllNodes.forEach((n) => {
-    if (family === "all" || n._family === family) visibleIds.add(n.id);
-  });
+  // The 3Dmol script is deferred, so wait briefly on a very early call.
+  if (molBlock && !window.$3Dmol && attempt < 40) {
+    setTimeout(() => render3DMolecule(molBlock, smiles, attempt + 1), 100);
+    return;
+  }
 
-  nodesDS.clear();
-  edgesDS.clear();
-  nodesDS.add(networkAllNodes.filter((n) => visibleIds.has(n.id)));
-  edgesDS.add(networkAllEdges.filter((e) => visibleIds.has(e.from) && visibleIds.has(e.to)));
+  if (molBlock && window.$3Dmol) {
+    fallback.style.display = "none";
+    container.style.display = "block";
+    container.innerHTML = "";
+    viewer = $3Dmol.createViewer(container, { backgroundColor: "#f7f7f8" });
+    viewer.addModel(molBlock, "sdf");
+    viewer.setStyle({}, { stick: { radius: 0.13 }, sphere: { scale: 0.24 } });
+    viewer.zoomTo();
+    viewer.render();
+    return;
+  }
+
+  container.style.display = "none";
+  fallback.style.display = "grid";
+  fallback.innerHTML =
+    `<div>3D coordinates unavailable<div class="mono" style="margin-top:6px;">${escapeHtml(safeText(smiles, "no SMILES"))}</div></div>`;
 }
 
-function wireNetworkFilters() {
-  const container = document.getElementById("network-family-filters");
-  if (!container) return;
-  container.querySelectorAll(".filter").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      container.querySelectorAll(".filter").forEach((x) => x.classList.remove("active"));
-      btn.classList.add("active");
-      applyNetworkFamilyFilter(btn.dataset.family || "all");
+function hydrateDetail(data) {
+  state.currentMolecule = data;
+  document.getElementById("detail-empty").style.display = "none";
+  document.getElementById("detail-body").style.display = "block";
+
+  document.getElementById("detail-name").textContent = data.name;
+  document.getElementById("detail-sub").textContent = data.desc;
+
+  document.getElementById("d-status").innerHTML = statusBadge(data.status);
+  document.getElementById("d-limit").innerHTML =
+    escapeHtml(limitLabel(data.limit, data.status)) +
+    (statusBucket(data.status) === "safe"
+      ? '<span class="hint">No IFRA Category 4 limit. Listed as a structural-similarity candidate only.</span>'
+      : '<span class="hint">Maximum concentration permitted in the finished product.</span>');
+  document.getElementById("d-risk").textContent = data.risk;
+  document.getElementById("d-year").textContent = data.year;
+  document.getElementById("d-cas").textContent = casFrom(data.desc);
+  document.getElementById("d-smiles").textContent = data.smiles;
+  document.getElementById("d-mw").textContent = num(data.mol_wt);
+  document.getElementById("d-logp").textContent = num(data.logp);
+
+  const tags = data.odorCategories.length
+    ? data.odorCategories.map((c) => `<span class="tag">${escapeHtml(c)}</span>`).join("")
+    : '<span class="tag">unknown</span>';
+  document.getElementById("d-odor").innerHTML =
+    tags + `<span class="hint">${escapeHtml(data.odor_basis)} — ${escapeHtml(data.odor_confidence)} confidence.
+    Inferred from name and substructure, not measured.</span>`;
+
+  document.getElementById("d-neighbour").innerHTML =
+    escapeHtml(data.replacement) +
+    '<span class="hint">Highest Tanimoto similarity over Morgan fingerprints. Structural ' +
+    'similarity is not toxicological equivalence — treat this as a starting point for review, ' +
+    'not a substitution recommendation.</span>';
+
+  render3DMolecule(data.mol_block, data.smiles);
+  ensureMolBlock(data);
+}
+
+async function loadMolecule(name) {
+  let item = null;
+  try {
+    const res = await fetch(`/api/molecule/${encodeURIComponent(name)}`);
+    if (res.ok) item = mapItem(await res.json());
+  } catch (_) {}
+
+  if (!item) item = state.ingredients.find((i) => i.name === name) || null;
+  if (!item) return;
+
+  hydrateDetail(item);
+  setActiveView("detail");
+}
+
+/* =====================================================
+   SEARCH
+   ===================================================== */
+async function updateSuggestions(query) {
+  const list = document.getElementById("molecule-suggestions");
+  if (!query.trim()) { list.innerHTML = ""; return; }
+
+  let matches = null;
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}`);
+    if (res.ok) matches = await res.json();
+  } catch (_) {}
+
+  if (!matches) {
+    const q = query.toLowerCase();
+    matches = state.ingredients.filter((i) => i.name.toLowerCase().includes(q)).slice(0, 10);
+  }
+
+  list.innerHTML = matches.slice(0, 10)
+    .map((m) => `<option value="${escapeHtml(m.name)}"></option>`).join("");
+}
+
+/* =====================================================
+   AUDIT
+   ===================================================== */
+function renderAudit(payload) {
+  const out = document.getElementById("audit-output");
+  if (!payload) {
+    out.innerHTML = '<div class="note">Could not read that file. Check it has <code class="mono">ingredient</code> and <code class="mono">percentage</code> columns.</div>';
+    return;
+  }
+
+  const failed = payload.failed_items || [];
+  const verdict = payload.compliant
+    ? `<div class="verdict verdict-pass">No Category 4 violations found in ${escapeHtml(payload.filename)}.</div>`
+    : `<div class="verdict verdict-fail">${failed.length} violation${failed.length === 1 ? "" : "s"} in ${escapeHtml(payload.filename)}: ${escapeHtml(failed.join(", "))}</div>`;
+
+  const rows = (payload.results || []).map((r) => `
+    <tr>
+      <td>${r.status === "PASS"
+            ? '<span class="badge badge-pass">Pass</span>'
+            : '<span class="badge badge-banned">Fail</span>'}</td>
+      <td class="name-cell">${escapeHtml(r.name)}</td>
+      <td class="num">${escapeHtml(String(r.formula_pct))}%</td>
+      <td class="num">${escapeHtml(String(r.limit))}</td>
+      <td class="reason-cell">${escapeHtml(String(r.risk))}</td>
+    </tr>
+  `).join("");
+
+  out.innerHTML = verdict + `
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Result</th><th>Ingredient</th><th>In formula</th><th>Limit</th><th>Reason</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  const items = parseCsv(await file.text());
+  if (!items.length) { renderAudit(null); return; }
+
+  try {
+    const res = await fetch("/api/audit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items, filename: file.name }),
     });
-  });
+    if (!res.ok) throw new Error("audit failed");
+    renderAudit(await res.json());
+  } catch (_) {
+    // Client-side fallback against already-loaded directory data.
+    const failed = [];
+    const results = items.map((row) => {
+      const match = state.ingredients.find((i) => i.name.toLowerCase() === row.ingredient.toLowerCase());
+      if (!match) return { status: "PASS", name: row.ingredient, formula_pct: row.percentage, limit: "N/A", risk: "Not in registry" };
+      const limit = Number(match.limit);
+      if (statusBucket(match.status) === "banned" || limit === 0) {
+        failed.push(match.name);
+        return { status: "FAIL", name: match.name, formula_pct: row.percentage, limit: "BANNED", risk: match.risk };
+      }
+      if (row.percentage > limit) {
+        failed.push(match.name);
+        return { status: "FAIL", name: match.name, formula_pct: row.percentage, limit: limit + "%", risk: match.risk };
+      }
+      return { status: "PASS", name: match.name, formula_pct: row.percentage, limit: limit + "%", risk: "Permissible" };
+    });
+    renderAudit({ filename: file.name, results, compliant: !failed.length, failed_items: failed });
+  }
 }
 
+/* =====================================================
+   NETWORK
+   ===================================================== */
 async function loadNetwork() {
   if (networkLoaded) return;
-
   const statusEl = document.getElementById("network-status");
-  if (statusEl) statusEl.textContent = "Fetching ingredient data…";
 
   let raw = [];
   try {
@@ -3352,149 +919,118 @@ async function loadNetwork() {
     if (res.ok) raw = await res.json();
   } catch (_) {}
 
-  // Fallback: derive from already-loaded directory data
   if (!raw.length && state.ingredients.length) {
     raw = state.ingredients.map((item, i) => ({
-      id: i,
-      name: item.name,
-      odor_family: item.odorCategories && item.odorCategories.length ? item.odorCategories[0] : "other",
-      status: item.status,
-      limit: item.limit,
-      smiles: item.smiles,
+      id: i, name: item.name, status: item.status, limit: item.limit,
+      odor_family: item.odorCategories[0] || "other",
     }));
   }
+  if (!raw.length) { statusEl.textContent = "No ingredient data available."; return; }
+  if (!window.vis) { statusEl.textContent = "Graph library still loading…"; setTimeout(loadNetwork, 300); return; }
 
-  if (!raw.length) {
-    if (statusEl) statusEl.textContent = "No ingredient data available.";
-    return;
-  }
+  statusEl.textContent = "Building graph…";
 
-  if (statusEl) statusEl.textContent = "Building network…";
-
-  // Build nodes
-  const familyCounts = {};
-  const familyIdMap = {};
-
-  networkAllNodes = raw.map((item) => {
+  const counts = {};
+  const byFamily = {};
+  const nodes = raw.map((item) => {
     const fam = item.odor_family || "other";
-    const pal = FAMILY_PALETTE[fam] || FAMILY_PALETTE.other;
-    const hi = HIGHLIGHT_FAMILIES.has(fam);
-    const limitLabel = Number.isFinite(Number(item.limit)) ? `${item.limit}%` : "—";
-    familyCounts[fam] = (familyCounts[fam] || 0) + 1;
-    if (!familyIdMap[fam]) familyIdMap[fam] = [];
-    familyIdMap[fam].push(item.id);
-
-    const label = String(item.name || "").length > 20
-      ? String(item.name).slice(0, 19) + "…"
-      : String(item.name || "");
-
+    counts[fam] = (counts[fam] || 0) + 1;
+    (byFamily[fam] = byFamily[fam] || []).push(item.id);
+    const color = FAMILY_COLORS[fam] || FAMILY_COLORS.other;
+    const label = String(item.name || "");
     return {
       id: item.id,
-      label,
-      title: `<b>${escapeHtml(item.name)}</b><br>Family: ${fam}<br>Status: ${escapeHtml(String(item.status || ""))}<br>Limit: ${limitLabel}`,
-      color: {
-        background: pal.bg,
-        border: pal.border,
-        highlight: { background: "#FFFF99", border: "#CC6600" },
-        hover: { background: "#FFFFCC", border: "#AA4400" },
-      },
-      size: hi ? 20 : 13,
-      font: { size: hi ? 12 : 9, color: "#1a1a1a" },
-      borderWidth: hi ? 3 : 1,
-      _family: fam,
+      label: label.length > 22 ? label.slice(0, 21) + "…" : label,
+      title: `${item.name}\n${fam} · ${item.status}`,
+      color: { background: color, border: color, highlight: { background: "#2b5cc4", border: "#2b5cc4" } },
+      size: 10,
+      font: { size: 10, color: "#16181d" },
       _name: item.name,
     };
   });
 
-  // Edges: connect molecules in the same family (cap per-family to avoid overload)
-  networkAllEdges = [];
+  const edges = [];
   let eid = 0;
-  Object.entries(familyIdMap).forEach(([fam, ids]) => {
-    const pal = FAMILY_PALETTE[fam] || FAMILY_PALETTE.other;
+  Object.entries(byFamily).forEach(([fam, ids]) => {
     const cap = ids.slice(0, 12);
     for (let a = 0; a < cap.length; a++) {
       for (let b = a + 1; b < cap.length; b++) {
-        networkAllEdges.push({
-          id: eid++,
-          from: cap[a],
-          to: cap[b],
-          color: { color: pal.border, opacity: 0.22 },
-          width: 1,
-        });
+        edges.push({ id: eid++, from: cap[a], to: cap[b], width: 1,
+                     color: { color: FAMILY_COLORS[fam] || FAMILY_COLORS.other, opacity: 0.18 } });
       }
     }
   });
 
-  buildNetworkLegend(familyCounts);
-
-  const nodesDS = new vis.DataSet(networkAllNodes);
-  const edgesDS = new vis.DataSet(networkAllEdges);
-  networkDataSets = { nodesDS, edgesDS };
-
-  const container = document.getElementById("network-canvas");
-  if (!container) return;
-
-  const theme = document.documentElement.getAttribute("data-theme") || "light";
-  container.style.background = theme === "light" ? "#F0E8DC" : "#12100E";
+  document.getElementById("network-legend").innerHTML = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([fam, n]) => `
+      <span class="legend-item">
+        <span class="legend-dot" style="background:${FAMILY_COLORS[fam] || FAMILY_COLORS.other}"></span>
+        ${escapeHtml(fam)} (${n})
+      </span>`).join("");
 
   networkInstance = new vis.Network(
-    container,
-    { nodes: nodesDS, edges: edgesDS },
+    document.getElementById("network-canvas"),
+    { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) },
     {
       physics: {
         solver: "forceAtlas2Based",
-        forceAtlas2Based: {
-          gravitationalConstant: -55,
-          centralGravity: 0.004,
-          springLength: 130,
-          springConstant: 0.09,
-          damping: 0.45,
-          avoidOverlap: 0.6,
-        },
+        forceAtlas2Based: { gravitationalConstant: -55, centralGravity: 0.005,
+                            springLength: 130, springConstant: 0.09, damping: 0.45, avoidOverlap: 0.6 },
         stabilization: { iterations: 200 },
       },
-      nodes: { shape: "dot", shadow: { enabled: true, size: 6, x: 2, y: 2 } },
+      nodes: { shape: "dot", borderWidth: 1 },
       edges: { smooth: { enabled: true, type: "continuous" } },
-      interaction: {
-        hover: true,
-        tooltipDelay: 150,
-        hideEdgesOnDrag: true,
-        navigationButtons: true,
-      },
+      interaction: { hover: true, tooltipDelay: 150, hideEdgesOnDrag: true },
     }
   );
 
   networkInstance.on("click", (params) => {
-    if (params.nodes.length > 0) {
-      const nodeId = params.nodes[0];
-      const node = networkAllNodes.find((n) => n.id === nodeId);
-      if (node && node._name) {
-        loadMolecule(node._name);
-      }
-    }
+    if (!params.nodes.length) return;
+    const node = nodes.find((n) => n.id === params.nodes[0]);
+    if (node) loadMolecule(node._name);
   });
 
-  networkInstance.on("stabilizationIterationsDone", () => {
-    if (statusEl) statusEl.textContent = `${raw.length} ingredients · ${Object.keys(familyCounts).length} families · click a node to open its dossier`;
+  networkInstance.once("stabilizationIterationsDone", () => {
+    statusEl.textContent = `${nodes.length} ingredients, ${edges.length} same-family edges. Click a node to open its record.`;
   });
 
   networkLoaded = true;
 }
 
-// Hook: load network when its tab is first activated
-(function patchNetworkTab() {
-  const originalSetActiveView = setActiveView;
-  window._networkTabHooked = true;
-  document.querySelectorAll(".tab").forEach((tab) => {
-    if (tab.dataset.view === "network") {
-      tab.addEventListener("click", () => {
-        setTimeout(loadNetwork, 350);
-      });
-    }
-  });
-})();
+/* =====================================================
+   INIT
+   ===================================================== */
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => setActiveView(tab.dataset.view));
+});
 
-wireNetworkFilters();
+["filter-status", "filter-odor", "filter-confidence", "sort-by"].forEach((id) => {
+  document.getElementById(id).addEventListener("change", renderDirectory);
+});
+document.getElementById("filter-text").addEventListener("input", renderDirectory);
+
+const searchInput = document.getElementById("search-input");
+searchInput.addEventListener("input", (e) => updateSuggestions(e.target.value));
+searchInput.addEventListener("change", (e) => {
+  const value = e.target.value.trim();
+  if (value) loadMolecule(value);
+});
+searchInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.value.trim()) loadMolecule(e.target.value.trim());
+});
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("file-input");
+document.getElementById("file-button").addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
+["dragenter", "dragover"].forEach((ev) =>
+  dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add("dragover"); }));
+["dragleave", "drop"].forEach((ev) =>
+  dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove("dragover"); }));
+dropzone.addEventListener("drop", (e) => handleFile(e.dataTransfer.files[0]));
+
+loadDirectory();
 </script>
 
 </body>

@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nose What's Legal | IFRA Compliance Intelligence</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
+  <!-- SmilesDrawer for client-side 2D structure fallback -->
+  <script src="https://unpkg.com/smiles-drawer@2.1.7/dist/smiles-drawer.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    * { box-sizing: border-box; }
+
+    body {
+      background: #f0f2f5;
+      font-family: 'Inter', -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Glass */
+    .glass {
+      background: rgba(255,255,255,0.82);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.45);
+    }
+
+    /* Active tab */
+    nav button.active {
+      color: #2563eb;
+      font-weight: 700;
+      border-bottom: 2.5px solid #2563eb;
+    }
+
+    /* Directory card left accent */
+    .card-banned   { border-left: 4px solid #ef4444; }
+    .card-restricted { border-left: 4px solid #f59e0b; }
+    .card-safe     { border-left: 4px solid #22c55e; }
+
+    /* 3D viewer container */
+    #mol-container {
+      width: 100%;
+      height: 340px;
+      border-radius: 0.75rem;
+      background: #0f172a;
+      overflow: hidden;
+    }
+
+    /* 2D SMILES canvas */
+    #smiles-canvas-2d { border-radius: 0.75rem; background: #ffffff; display: block; }
+
+    /* Monospace */
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Grade badge */
+    .grade-badge {
+      width: 52px; height: 52px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 900;
+      flex-shrink: 0;
+    }
+
+    /* Audit table */
+    .audit-row-pass { background: #f0fdf4; }
+    .audit-row-fail { background: #fef2f2; }
+    .audit-row-warn { background: #fffbeb; }
+
+    /* Smooth tab transitions */
+    .tab-content { animation: fadein 0.25s ease; }
+    @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* Pulse dot */
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .pulse-dot { animation: pulse-dot 2s infinite; }
+
+    /* Scroll-hiding search dropdown */
+    #search-dropdown::-webkit-scrollbar { width: 4px; }
+    #search-dropdown::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+
+    /* Limit bar */
+    .limit-bar-fill { transition: width 0.6s cubic-bezier(0.16,1,0.3,1); }
+
+    /* Hover lift */
+    .hover-lift { transition: box-shadow 0.2s ease, transform 0.2s ease; }
+    .hover-lift:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="text-slate-800 antialiased">
+
+  <!-- ===== HEADER ===== -->
+  <header class="glass sticky top-0 z-50 w-full">
+    <div class="max-w-6xl mx-auto px-5 py-3.5 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-md">
+          <span class="text-white text-sm">⚗</span>
+        </div>
+        <div>
+          <span class="text-slate-900 text-base font-black tracking-tight">Nose What's Legal</span>
+          <span class="hidden sm:inline text-xs font-medium text-slate-400 ml-2">IFRA Compliance Intelligence</span>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="relative w-72">
+        <div class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35"/></svg>
+        </div>
+        <input type="text" autocomplete="off" id="global-search"
+          class="w-full bg-slate-100 text-sm rounded-full py-2 pl-9 pr-4 outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+          placeholder="Search molecule…">
+        <ul id="search-dropdown"
+          class="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-2xl mt-2 hidden max-h-60 overflow-y-auto divide-y divide-slate-50">
+        </ul>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== TABS ===== -->
+  <div class="max-w-6xl mx-auto px-5">
+    <nav class="flex space-x-1 mt-8 mb-6 border-b border-slate-200">
+      <button onclick="switchTab('directory')" id="btn-directory"
+        class="tab-btn active pb-3 px-4 text-sm text-slate-500 hover:text-slate-800 transition whitespace-nowrap">
+        📚 Directory
+      </button>
+      <button onclick="switchTab('intel')" id="btn-intel"
+        class="tab-btn pb-3 px-4 text-sm text-slate-500 hover:text-slate-800 transition whitespace-nowrap">
+        🧪 Molecule Intel
+      </button>
+      <button onclick="switchTab('legal')" id="btn-legal"
+        class="tab-btn pb-3 px-4 text-sm text-slate-500 hover:text-slate-800 transition whitespace-nowrap">
+        ⚖️ Regulatory Audit
+      </button>
+    </nav>
+  </div>
+
+  <!-- ===== MAIN ===== -->
+  <main class="max-w-6xl mx-auto px-5 pb-24 min-h-[60vh]">
+
+    <!-- Error banner -->
+    <div id="error-banner" class="hidden mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-xl px-4 py-3"></div>
+
+    <!-- ============================================================ -->
+    <!-- TAB: DIRECTORY                                               -->
+    <!-- ============================================================ -->
+    <section id="tab-directory" class="tab-content block">
+
+      <div class="mb-6">
+        <h1 class="text-2xl font-black text-slate-900">IFRA Ingredient Directory</h1>
+        <p class="text-sm text-slate-500 mt-1">51st Amendment — restricted, banned, and watchlisted fragrance materials.</p>
+      </div>
+
+      <!-- Stats strip -->
+      <div id="directory-stats" class="flex flex-wrap gap-2 mb-6 text-sm font-semibold"></div>
+
+      <!-- Filters & Sort -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+        <div class="flex gap-2 flex-wrap" id="filter-btns">
+          <button onclick="filterDirectory('All')"        data-filter="All"        class="filter-btn px-4 py-1.5 text-xs font-bold rounded-full bg-slate-800 text-white shadow">All</button>
+          <button onclick="filterDirectory('Banned')"     data-filter="Banned"     class="filter-btn px-4 py-1.5 text-xs font-bold rounded-full bg-red-100 text-red-700 hover:bg-red-200 transition">Banned</button>
+          <button onclick="filterDirectory('Restricted')" data-filter="Restricted" class="filter-btn px-4 py-1.5 text-xs font-bold rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 transition">Restricted</button>
+          <button onclick="filterDirectory('Safe')"       data-filter="Safe"       class="filter-btn px-4 py-1.5 text-xs font-bold rounded-full bg-green-100 text-green-700 hover:bg-green-200 transition">Safe / Watchlist</button>
+        </div>
+        <select id="sort-select" onchange="sortDirectory(this.value)"
+          class="text-xs font-semibold border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 outline-none focus:border-blue-400">
+          <option value="name_asc">Name (A→Z)</option>
+          <option value="year_desc">Year Assessed (Newest)</option>
+          <option value="year_asc">Year Assessed (Oldest)</option>
+        </select>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" id="directory-grid"></div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- TAB: MOLECULE INTEL (Consumer + Chemist combined)            -->
+    <!-- ============================================================ -->
+    <section id="tab-intel" class="tab-content hidden">
+
+      <!-- Placeholder state -->
+      <div id="intel-placeholder" class="flex flex-col items-center justify-center py-24 text-slate-400">
+        <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4 text-3xl">🔭</div>
+        <p class="font-semibold text-slate-600">No molecule selected</p>
+        <p class="text-sm mt-1">Search a molecule or pick one from the Directory</p>
+      </div>
+
+      <!-- Loaded state -->
+      <div id="intel-content" class="hidden">
+
+        <!-- Molecule header -->
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
+          <div>
+            <div class="flex items-center gap-3">
+              <h1 id="mi-name" class="text-3xl font-black text-slate-900">Molecule</h1>
+              <span id="mi-status-badge" class="px-3 py-1 rounded-full text-xs font-bold"></span>
+            </div>
+            <p id="mi-desc" class="text-sm text-slate-500 mt-1 max-w-xl"></p>
+          </div>
+          <div class="flex items-center gap-2">
+            <div id="mi-grade-badge" class="grade-badge text-white shadow-lg"></div>
+            <div class="text-right">
+              <div class="text-xs text-slate-400 font-medium">Safety Grade</div>
+              <div id="mi-grade-label" class="text-xs font-semibold text-slate-700 mt-0.5"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Split layout: Consumer (left) | Chemist (right) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+          <!-- ── LEFT: Consumer-friendly panel ── -->
+          <div class="flex flex-col gap-4">
+
+            <!-- Risk + Limit card -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover-lift">
+              <div class="flex items-start gap-4">
+                <div id="mi-risk-icon" class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl"></div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Primary Risk</div>
+                  <div id="mi-risk" class="font-semibold text-slate-800 text-sm leading-snug"></div>
+                </div>
+              </div>
+              <div class="mt-5 pt-4 border-t border-slate-50">
+                <div class="flex justify-between items-baseline mb-2">
+                  <span class="text-xs font-bold uppercase tracking-widest text-slate-400">Skin Limit (Cat. 4)</span>
+                  <span id="mi-limit" class="text-2xl font-black text-slate-900"></span>
+                </div>
+                <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div id="mi-limit-bar" class="limit-bar-fill h-2 rounded-full" style="width:0%"></div>
+                </div>
+                <div class="flex justify-between text-xs text-slate-400 mt-1">
+                  <span>0%</span><span>Unlimited</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- IFRA Regulation year + CAS -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover-lift">
+              <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Year Assessed</div>
+                  <div id="mi-year" class="font-bold text-slate-800 text-lg"></div>
+                </div>
+                <div>
+                  <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Regulatory Body</div>
+                  <div class="font-bold text-slate-800">IFRA / RIFM</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Substitutor (consumer-friendly) -->
+            <div class="rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-700 text-white shadow-lg p-5 hover-lift">
+              <div class="text-xs font-bold uppercase tracking-widest opacity-70 mb-1">AI Substitute Recommendation</div>
+              <p class="text-sm opacity-80 mb-3">Closest structural analog computed via Tanimoto similarity on Morgan fingerprints.</p>
+              <div class="bg-white/15 rounded-xl px-4 py-3">
+                <p id="mi-proxy" class="font-bold text-base leading-snug"></p>
+              </div>
+              <div class="mt-2 text-xs opacity-60">Higher % = more structurally similar alternative</div>
+            </div>
+
+          </div>
+
+          <!-- ── RIGHT: Chemist panel ── -->
+          <div class="flex flex-col gap-4">
+
+            <!-- 3D / 2D Viewer -->
+            <div class="bg-slate-900 rounded-2xl shadow-xl overflow-hidden relative">
+              <div class="absolute top-3 left-3 z-10 bg-white/10 backdrop-blur px-3 py-1 rounded-full text-xs font-semibold text-white/80" id="ms-name-tag">Loading…</div>
+              <div id="viewer-mode-badge" class="absolute top-3 right-3 z-10 bg-white/10 backdrop-blur px-2 py-1 rounded-full text-xs font-mono text-white/60 hidden">2D</div>
+              <!-- 3D viewer -->
+              <div id="mol-container"></div>
+              <!-- 2D fallback canvas -->
+              <canvas id="smiles-canvas-2d" class="hidden w-full" height="340"></canvas>
+            </div>
+
+            <!-- QSAR Descriptors -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover-lift">
+              <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">QSAR Descriptors</div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-50 rounded-xl p-3">
+                  <div class="text-xs text-slate-400 mb-1">Mol. Weight</div>
+                  <div id="ms-mw" class="text-xl font-black text-slate-900">—</div>
+                  <div class="text-xs text-slate-400">g/mol</div>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-3">
+                  <div class="text-xs text-slate-400 mb-1">LogP</div>
+                  <div id="ms-logp" class="text-xl font-black text-slate-900">—</div>
+                  <div class="text-xs text-slate-400">Lipophilicity</div>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-3 col-span-2">
+                  <div class="text-xs text-slate-400 mb-1">SMILES</div>
+                  <code id="ms-smiles" class="mono text-xs text-slate-700 break-all"></code>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- TAB: REGULATORY AUDIT                                        -->
+    <!-- ============================================================ -->
+    <section id="tab-legal" class="tab-content hidden">
+
+      <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <div>
+          <h1 class="text-2xl font-black text-slate-900 border-l-4 border-emerald-500 pl-4">Regulatory Audit Trail</h1>
+          <p class="text-sm text-slate-500 mt-1 pl-4">Cross-reference a CSV formulation against IFRA Standards.</p>
+        </div>
+        <label class="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-semibold text-sm shadow-lg hover:bg-slate-700 transition flex items-center gap-2 cursor-pointer">
+          <input type="file" id="formula-upload" class="hidden" accept=".csv">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
+          Upload CSV Formula
+        </label>
+      </div>
+
+      <!-- Audit Summary Strip -->
+      <div id="audit-summary" class="hidden flex gap-3 mb-5 flex-wrap"></div>
+
+      <!-- Awaiting state -->
+      <div id="audit-awaiting" class="bg-white border border-slate-100 rounded-2xl p-10 text-center shadow-sm">
+        <div class="text-4xl mb-3">📋</div>
+        <p class="font-semibold text-slate-600">Awaiting formula upload</p>
+        <p class="text-sm text-slate-400 mt-1">Upload a CSV with columns: <code class="mono bg-slate-100 px-1.5 py-0.5 rounded text-xs">ingredient, percentage</code></p>
+      </div>
+
+      <!-- Results table -->
+      <div id="audit-results" class="hidden bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+          <span id="audit-compliance-dot" class="w-3 h-3 rounded-full bg-slate-300 pulse-dot"></span>
+          <span id="audit-compliance-label" class="font-bold text-slate-800 text-sm">Running audit…</span>
+          <span id="audit-filename" class="text-xs text-slate-400 ml-auto mono"></span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-xs font-bold uppercase tracking-widest text-slate-400">
+                <th class="px-5 py-3 text-left">Verdict</th>
+                <th class="px-5 py-3 text-left">Ingredient</th>
+                <th class="px-5 py-3 text-right">Formula %</th>
+                <th class="px-5 py-3 text-right">IFRA Limit</th>
+                <th class="px-5 py-3 text-left">Risk Note</th>
+              </tr>
+            </thead>
+            <tbody id="audit-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <!-- ============================================================ -->
+  <!-- JAVASCRIPT LOGIC                                             -->
+  <!-- ============================================================ -->
+  <script>
+    // ── Utilities ──────────────────────────────────────────────
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.remove('hidden');
+      document.getElementById('btn-' + tabId).classList.add('active');
+      if (tabId === 'intel' && window.viewer) {
+        setTimeout(() => viewer.render(), 120);
+      }
+    }
+
+    function getStatusColor(status) {
+      if (status.includes('Banned'))     return { bg: 'bg-red-100',    text: 'text-red-700',    bar: '#ef4444', card: 'card-banned' };
+      if (status.includes('Restricted')) return { bg: 'bg-amber-100',  text: 'text-amber-700',  bar: '#f59e0b', card: 'card-restricted' };
+      return                                     { bg: 'bg-green-100',  text: 'text-green-700',  bar: '#22c55e', card: 'card-safe' };
+    }
+
+    function computeGrade(status, limit) {
+      if (status.includes('Banned') || limit == 0)        return { letter: 'F', bg: 'bg-red-500',    label: 'Prohibited' };
+      if (limit > 0 && limit <= 0.5)                      return { letter: 'D', bg: 'bg-orange-500', label: 'Severely Limited' };
+      if (limit > 0.5 && limit <= 2)                      return { letter: 'C', bg: 'bg-amber-500',  label: 'Restricted Use' };
+      if (limit > 2 && limit < 100)                       return { letter: 'B', bg: 'bg-yellow-500', label: 'Controlled Use' };
+      return                                                      { letter: 'A', bg: 'bg-green-500',  label: 'Generally Safe' };
+    }
+
+    function getRiskIcon(status) {
+      if (status.includes('Banned'))     return { icon: '🚫', bg: 'bg-red-100' };
+      if (status.includes('Restricted')) return { icon: '⚠️',  bg: 'bg-amber-100' };
+      return                                    { icon: '✅', bg: 'bg-green-100' };
+    }
+
+    // ── 3D Molecule Viewer ──────────────────────────────────────
+    let viewer = null;
+
+    function render3DMolecule(molBlock) {
+      const container3d = document.getElementById('mol-container');
+      const canvas2d    = document.getElementById('smiles-canvas-2d');
+      const modeBadge   = document.getElementById('viewer-mode-badge');
+
+      if (molBlock) {
+        container3d.classList.remove('hidden');
+        canvas2d.classList.add('hidden');
+        modeBadge.classList.add('hidden');
+        container3d.innerHTML = '';
+        viewer = $3Dmol.createViewer(container3d, { backgroundColor: '#0f172a' });
+        viewer.addModel(molBlock, 'sdf');
+        viewer.setStyle({}, { stick: { radius: 0.14, colorscheme: 'Jmol' }, sphere: { scale: 0.28 } });
+        viewer.zoomTo();
+        viewer.render();
+        viewer.spin('y', 0.8);
+      } else {
+        container3d.classList.add('hidden');
+        canvas2d.classList.remove('hidden');
+        modeBadge.classList.remove('hidden');
+        modeBadge.textContent = '2D · No 3D coords';
+      }
+    }
+
+    function render2DSmiles(smiles) {
+      const canvas = document.getElementById('smiles-canvas-2d');
+      if (!smiles || typeof SmilesDrawer === 'undefined') {
+        canvas.classList.add('hidden');
+        document.getElementById('mol-container').classList.remove('hidden');
+        document.getElementById('mol-container').innerHTML =
+          "<div class='text-slate-400 p-4 h-full flex items-center justify-center text-sm font-mono'>No structure data</div>";
+        return;
+      }
+
+      const w = canvas.parentElement.clientWidth || 480;
+      canvas.width  = w;
+      canvas.height = 340;
+
+      const drawer = new SmilesDrawer.SvgDrawer({ width: w, height: 340, bondThickness: 1.4, shortBondLength: 0.85, bondSpacing: 5, atomVisualization: 'default', fontSizeLarge: 10, padding: 20 });
+      SmilesDrawer.parse(smiles, (tree) => {
+        drawer.draw(tree, canvas, 'light', false);
+      }, (err) => {
+        canvas.classList.add('hidden');
+        document.getElementById('mol-container').classList.remove('hidden');
+        document.getElementById('mol-container').innerHTML =
+          "<div class='text-slate-400 p-4 h-full flex items-center justify-center text-sm font-mono'>Could not render structure</div>";
+      });
+    }
+
+    // ── Fetch & bind molecule data ──────────────────────────────
+    async function fetchMoleculeData(query) {
+      const banner = document.getElementById('error-banner');
+      banner.classList.add('hidden');
+
+      try {
+        const res = await fetch(`/api/molecule/${encodeURIComponent(query)}`);
+        if (!res.ok) {
+          banner.textContent = `"${query}" not found. Try: Lilial, Limonene, or Eugenol.`;
+          banner.classList.remove('hidden');
+          return;
+        }
+        const data = await res.json();
+        bindIntelPanel(data);
+      } catch (err) {
+        console.error(err);
+        banner.textContent = 'Connection error. Is the API running?';
+        banner.classList.remove('hidden');
+      }
+    }
+
+    function bindIntelPanel(data) {
+      // Show content, hide placeholder
+      document.getElementById('intel-placeholder').classList.add('hidden');
+      document.getElementById('intel-content').classList.remove('hidden');
+
+      const colors = getStatusColor(data.status);
+      const grade  = computeGrade(data.status, data.limit);
+      const riskIc = getRiskIcon(data.status);
+
+      // Header
+      document.getElementById('mi-name').textContent = data.name;
+      document.getElementById('mi-desc').textContent = data.desc;
+
+      const sb = document.getElementById('mi-status-badge');
+      sb.textContent  = data.status;
+      sb.className    = `px-3 py-1 rounded-full text-xs font-bold ${colors.bg} ${colors.text}`;
+
+      // Grade badge
+      const gb = document.getElementById('mi-grade-badge');
+      gb.textContent = grade.letter;
+      gb.className   = `grade-badge text-white shadow-lg ${grade.bg}`;
+      document.getElementById('mi-grade-label').textContent = grade.label;
+
+      // Risk + limit
+      const ri = document.getElementById('mi-risk-icon');
+      ri.textContent = riskIc.icon;
+      ri.className   = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${riskIc.bg}`;
+      document.getElementById('mi-risk').textContent = data.risk;
+
+      const limitNum = parseFloat(data.limit) || 0;
+      const limitText = (limitNum === 0 || data.status.includes('Banned'))
+        ? '0% — BANNED'
+        : `${data.limit}%`;
+      document.getElementById('mi-limit').textContent = limitText;
+
+      // Limit bar (cap at 10% for visual clarity; 100% limit = full bar)
+      const barPct = data.status.includes('Banned') ? 0
+        : limitNum >= 100 ? 100
+        : Math.min((limitNum / 10) * 100, 100);
+      const bar = document.getElementById('mi-limit-bar');
+      bar.style.width = barPct + '%';
+      bar.style.background = colors.bar;
+
+      // Year
+      document.getElementById('mi-year').textContent = (data.year && data.year !== 'Unknown Year') ? data.year : '—';
+
+      // AI Proxy
+      document.getElementById('mi-proxy').innerHTML = data.replacement || 'No structural proxy found.';
+
+      // Chemist panel
+      document.getElementById('ms-name-tag').textContent = `${data.name} · ${data.status}`;
+      document.getElementById('ms-mw').textContent   = data.mol_wt  || '—';
+      document.getElementById('ms-logp').textContent  = data.logp   || '—';
+      document.getElementById('ms-smiles').textContent = data.smiles || '—';
+
+      // Render molecule
+      if (data.mol_block) {
+        render3DMolecule(data.mol_block);
+      } else {
+        render3DMolecule(null);        // hide 3D container
+        render2DSmiles(data.smiles);   // try 2D fallback
+      }
+    }
+
+    function openMolecule(name) {
+      switchTab('intel');
+      fetchMoleculeData(name);
+    }
+
+    // ── Directory ───────────────────────────────────────────────
+    let allMolecules = [];
+    let currentFilter = 'All';
+    let currentSort   = 'name_asc';
+
+    async function loadDirectory() {
+      try {
+        const res = await fetch('/api/directory');
+        allMolecules = await res.json();
+
+        const total      = allMolecules.length;
+        const banned     = allMolecules.filter(m => m.status.includes('Banned')).length;
+        const restricted = allMolecules.filter(m => m.status.includes('Restricted')).length;
+        const safe       = allMolecules.filter(m => !m.status.includes('Banned') && !m.status.includes('Restricted')).length;
+
+        document.getElementById('directory-stats').innerHTML = `
+          <span class="bg-slate-800 text-white text-xs font-bold px-3 py-1 rounded-full">Total: ${total}</span>
+          <span class="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">⛔ Banned: ${banned}</span>
+          <span class="bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1 rounded-full">⚠️ Restricted: ${restricted}</span>
+          <span class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">🔍 Watchlist: ${safe}</span>
+        `;
+
+        applyFilterAndSort();
+      } catch (err) {
+        console.error('Failed to load directory', err);
+      }
+    }
+
+    function renderDirectory(mols) {
+      const grid = document.getElementById('directory-grid');
+      grid.innerHTML = mols.map(m => {
+        const colors = getStatusColor(m.status);
+        const grade  = computeGrade(m.status, parseFloat(m.limit) || 0);
+        const yearHtml = (m.year && m.year !== 'N/A' && m.year !== 'Unknown Year')
+          ? `<span class="mono text-xs text-slate-400">${m.year}</span>` : '';
+
+        return `
+          <div onclick="openMolecule('${m.name.replace(/'/g, "\\'")}')"
+            class="bg-white rounded-2xl shadow-sm border border-slate-100 hover-lift cursor-pointer overflow-hidden flex ${colors.card}">
+            <div class="flex-1 p-4">
+              <div class="flex items-start justify-between gap-2 mb-2">
+                <h3 class="font-bold text-slate-900 text-sm leading-tight">${m.name}</h3>
+                <div class="grade-badge w-7 h-7 rounded-lg text-white text-xs font-black flex-shrink-0 ${grade.bg}" style="min-width:28px;height:28px">${grade.letter}</div>
+              </div>
+              <p class="text-xs text-slate-500 leading-relaxed line-clamp-2">${m.risk}</p>
+              <div class="flex items-center justify-between mt-3">
+                <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${colors.bg} ${colors.text}">${m.status.split('/')[0].trim()}</span>
+                ${yearHtml}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterDirectory(status) {
+      currentFilter = status;
+      applyFilterAndSort();
+    }
+
+    function sortDirectory(val) {
+      currentSort = val;
+      applyFilterAndSort();
+    }
+
+    function applyFilterAndSort() {
+      let filtered = currentFilter === 'All'
+        ? [...allMolecules]
+        : allMolecules.filter(m => m.status.includes(currentFilter));
+
+      filtered.sort((a, b) => {
+        if (currentSort === 'name_asc') return a.name.localeCompare(b.name);
+        const ya = parseInt(a.year) || (currentSort === 'year_asc' ? 9999 : 0);
+        const yb = parseInt(b.year) || (currentSort === 'year_asc' ? 9999 : 0);
+        return currentSort === 'year_desc' ? yb - ya : ya - yb;
+      });
+
+      renderDirectory(filtered);
+    }
+
+    // ── Regulatory Audit ────────────────────────────────────────
+    document.getElementById('formula-upload').addEventListener('change', async function () {
+      if (!this.files.length) return;
+      const file = this.files[0];
+      const text = await file.text();
+
+      const lines = text.split('\n').filter(l => l.trim());
+      const header = lines[0].toLowerCase();
+
+      // Detect columns
+      const cols = header.split(',').map(c => c.trim().replace(/"/g, ''));
+      const ingIdx = cols.findIndex(c => c === 'ingredient' || c === 'name' || c === 'material');
+      const pctIdx = cols.findIndex(c => c === 'percentage' || c === 'percent' || c === 'pct' || c === '%');
+
+      if (ingIdx === -1 || pctIdx === -1) {
+        alert('CSV must have columns: ingredient, percentage');
+        return;
+      }
+
+      const items = [];
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(',').map(p => p.trim().replace(/"/g, ''));
+        if (!parts[ingIdx]) continue;
+        items.push({ ingredient: parts[ingIdx], percentage: parseFloat(parts[pctIdx]) || 0 });
+      }
+
+      try {
+        const res = await fetch('/api/audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items, filename: file.name })
+        });
+        const result = await res.json();
+        renderAuditResults(result);
+      } catch (err) {
+        console.error(err);
+        alert('Audit request failed. Is the API running?');
+      }
+    });
+
+    function renderAuditResults(data) {
+      document.getElementById('audit-awaiting').classList.add('hidden');
+      document.getElementById('audit-results').classList.remove('hidden');
+
+      const totalItems = data.results.length;
+      const failCount  = data.results.filter(r => r.status === 'FAIL').length;
+      const passCount  = totalItems - failCount;
+
+      // Compliance indicator
+      const dot   = document.getElementById('audit-compliance-dot');
+      const label = document.getElementById('audit-compliance-label');
+      if (data.compliant) {
+        dot.className   = 'w-3 h-3 rounded-full bg-green-500 pulse-dot';
+        label.textContent = `Formula COMPLIANT — all ${totalItems} ingredients pass IFRA Standards`;
+        label.className   = 'font-bold text-green-700 text-sm';
+      } else {
+        dot.className   = 'w-3 h-3 rounded-full bg-red-500 pulse-dot';
+        label.textContent = `Formula NON-COMPLIANT — ${failCount} of ${totalItems} ingredient(s) fail`;
+        label.className   = 'font-bold text-red-700 text-sm';
+      }
+      document.getElementById('audit-filename').textContent = data.filename;
+
+      // Summary strip
+      const summary = document.getElementById('audit-summary');
+      summary.classList.remove('hidden');
+      summary.innerHTML = `
+        <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">✅ Pass: ${passCount}</span>
+        <span class="bg-red-100 text-red-800 text-xs font-bold px-3 py-1 rounded-full">❌ Fail: ${failCount}</span>
+        <span class="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1 rounded-full">📦 Total: ${totalItems}</span>
+      `;
+
+      // Table rows
+      const tbody = document.getElementById('audit-tbody');
+      tbody.innerHTML = data.results.map(r => {
+        const isPass = r.status === 'PASS';
+        const rowClass = isPass ? 'audit-row-pass' : 'audit-row-fail';
+        const verdictHtml = isPass
+          ? `<span class="inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✅ PASS</span>`
+          : `<span class="inline-flex items-center gap-1 text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">❌ FAIL</span>`;
+        return `
+          <tr class="${rowClass} border-t border-slate-100 hover:brightness-95 transition">
+            <td class="px-5 py-3">${verdictHtml}</td>
+            <td class="px-5 py-3 font-semibold text-slate-800 text-sm">${r.name}</td>
+            <td class="px-5 py-3 text-right mono text-sm font-bold text-slate-700">${r.formula_pct}%</td>
+            <td class="px-5 py-3 text-right mono text-sm font-semibold ${isPass ? 'text-slate-500' : 'text-red-600'}">${r.limit}</td>
+            <td class="px-5 py-3 text-xs text-slate-500">${r.risk}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // ── Search autocomplete ─────────────────────────────────────
+    const searchInput    = document.getElementById('global-search');
+    const searchDropdown = document.getElementById('search-dropdown');
+
+    searchInput.addEventListener('input', async (e) => {
+      const val = e.target.value.trim();
+      if (!val) { searchDropdown.classList.add('hidden'); return; }
+
+      try {
+        const res     = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
+        const matches = await res.json();
+
+        if (matches.length > 0) {
+          searchDropdown.innerHTML = matches.map(m =>
+            `<li class="px-4 py-3 hover:bg-blue-50 cursor-pointer text-sm text-slate-800 font-medium transition search-item" data-name="${m.name}">${m.name}</li>`
+          ).join('');
+          searchDropdown.classList.remove('hidden');
+        } else {
+          searchDropdown.innerHTML = `<li class="px-4 py-3 text-sm text-slate-400 italic">No matches found</li>`;
+          searchDropdown.classList.remove('hidden');
+        }
+      } catch (err) { console.error(err); }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target))
+        searchDropdown.classList.add('hidden');
+    });
+
+    searchDropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('.search-item');
+      if (item) {
+        const name = item.getAttribute('data-name');
+        searchInput.value = name;
+        searchDropdown.classList.add('hidden');
+        openMolecule(name);
+      }
+    });
+
+    searchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        openMolecule(e.target.value.trim());
+        searchDropdown.classList.add('hidden');
+      }
+    });
+
+    // ── Boot ────────────────────────────────────────────────────
+    window.addEventListener('load', loadDirectory);
+  </script>
+</body>
+</html>
